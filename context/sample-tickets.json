@@ -1,0 +1,508 @@
+[
+  {
+    "id": "t001",
+    "channel": "email",
+    "customer_email": "john.doe@example.com",
+    "customer_name": "John Doe",
+    "subject": "API Key Rotation Question",
+    "content": "Hello, I need to rotate my API key for security compliance. Can you walk me through the process? I want to make sure there's no downtime during the rotation. Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "api_key_management"
+  },
+  {
+    "id": "t002",
+    "channel": "email",
+    "customer_email": "sarah.chen@startup.io",
+    "customer_name": "Sarah Chen",
+    "subject": "OAuth 2.0 Implementation Help",
+    "content": "Hi TechCorp Team, I'm implementing OAuth 2.0 for our application and I'm stuck on the authorization code flow. After the user grants permission, I'm not receiving the authorization code at my redirect URI. The URI is registered correctly in the dashboard. Can you help troubleshoot? Our redirect URI is https://app.startup.io/auth/callback. Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "oauth_authentication"
+  },
+  {
+    "id": "t003",
+    "channel": "email",
+    "customer_email": "mike.rodriguez@enterprise.com",
+    "customer_name": "Mike Rodriguez",
+    "subject": "Webhook Retry Logic Question",
+    "content": "Hello, we're experiencing issues with webhook deliveries. Our endpoint is returning 200 OK but TechCorp is retrying the delivery multiple times. How does the retry logic work? Do we need to acknowledge the webhook differently? This is affecting our production environment. Please advise urgently.",
+    "expected_escalate": false,
+    "expected_topic": "webhooks"
+  },
+  {
+    "id": "t004",
+    "channel": "email",
+    "customer_email": "lisa.wong@techstartup.com",
+    "customer_name": "Lisa Wong",
+    "subject": "Rate Limit Increase Request",
+    "content": "Hi, our application is growing faster than expected and we're hitting our rate limits frequently. We're on the Pro plan (1000 requests/hour) but need at least 5000 requests/hour. Can we get a temporary increase while we upgrade to Enterprise? Our app is for a healthcare client and downtime is critical. Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "rate_limits"
+  },
+  {
+    "id": "t005",
+    "channel": "email",
+    "customer_email": "david.kim@datacompany.com",
+    "customer_name": "David Kim",
+    "subject": "Data Export Format Question",
+    "content": "Hello Support, I need to export all our user data for compliance reasons. What's the difference between CSV and JSON export formats? Also, how long are the export files retained? I need to download them next week but will be traveling. Can the download link be extended? Thanks for your help!",
+    "expected_escalate": false,
+    "expected_topic": "data_export"
+  },
+  {
+    "id": "t006",
+    "channel": "email",
+    "customer_email": "pricing@bigcorp.com",
+    "customer_name": "BigCorp Procurement",
+    "subject": "Enterprise Plan Pricing",
+    "content": "Hello, we're interested in the Enterprise plan for our organization of 500+ developers. Can you provide detailed pricing information including volume discounts? We also need information about SLA guarantees, dedicated support, and custom integrations. Please send a quote. Budget approval needed by end of month.",
+    "expected_escalate": true,
+    "expected_topic": "pricing_inquiry"
+  },
+  {
+    "id": "t007",
+    "channel": "email",
+    "customer_email": "angry.customer@frustrated.com",
+    "customer_name": "Angry Customer",
+    "subject": "YOUR API IS BROKEN!!!",
+    "content": "This is absolutely RIDICULOUS! Your API has been down for the past 2 hours and we're losing THOUSANDS of dollars! This is the THIRD outage this month! Your support is USELESS and I'm seriously considering switching to your competitor. I demand a full refund and compensation for our losses! This is UNACCEPTABLE!",
+    "expected_escalate": true,
+    "expected_topic": "negative_sentiment"
+  },
+  {
+    "id": "t008",
+    "channel": "email",
+    "customer_email": "legal@lawfirm.com",
+    "customer_name": "Legal Department",
+    "subject": "Legal Notice - Data Breach Concerns",
+    "content": "Dear TechCorp Legal Team, We represent clients who have concerns about potential data exposure through your API. We need immediate clarification on your data handling practices and security measures. If we don't receive satisfactory answers within 48 hours, we will be forced to explore legal options. This is a formal legal notice. Regards, Legal Counsel",
+    "expected_escalate": true,
+    "expected_topic": "legal_threat"
+  },
+  {
+    "id": "t009",
+    "channel": "email",
+    "customer_email": "developer@smallstartup.com",
+    "customer_name": "Dev Team",
+    "subject": "How to Implement Refresh Tokens?",
+    "content": "Hi, I'm implementing OAuth and my access tokens are expiring after 1 hour. How do I use refresh tokens to get new access tokens? The documentation mentions refresh tokens but I can't find the exact endpoint. Do I use the same /oauth/token endpoint? What parameters do I need to send? Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "oauth_authentication"
+  },
+  {
+    "id": "t010",
+    "channel": "email",
+    "customer_email": "admin@school.edu",
+    "customer_name": "School Admin",
+    "subject": "Educational Discount Available?",
+    "content": "Hello, I'm from a university and we'd like to use TechCorp for our computer science courses. Do you offer educational discounts or free tiers for educational institutions? We have about 200 students who would use the platform for learning. Also, can students create individual accounts under one organization? Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "pricing_inquiry"
+  },
+  {
+    "id": "t011",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551001",
+    "content": "hey how do i reset my api key?",
+    "expected_escalate": false,
+    "expected_topic": "api_key_management"
+  },
+  {
+    "id": "t012",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551002",
+    "content": "oauth redirect not working. help!",
+    "expected_escalate": false,
+    "expected_topic": "oauth_authentication"
+  },
+  {
+    "id": "t013",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551003",
+    "content": "webhook not being received at our endpoint. url is https://api.ourcompany.com/webhooks. can u check?",
+    "expected_escalate": false,
+    "expected_topic": "webhooks"
+  },
+  {
+    "id": "t014",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551004",
+    "content": "keep hitting rate limit. can u increase? on pro plan",
+    "expected_escalate": false,
+    "expected_topic": "rate_limits"
+  },
+  {
+    "id": "t015",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551005",
+    "content": "how to export data in json format?",
+    "expected_escalate": false,
+    "expected_topic": "data_export"
+  },
+  {
+    "id": "t016",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551006",
+    "content": "whats the price for enterprise?",
+    "expected_escalate": true,
+    "expected_topic": "pricing_inquiry"
+  },
+  {
+    "id": "t017",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551007",
+    "content": "THIS IS BROKEN!!! FIX IT NOW!!!",
+    "expected_escalate": true,
+    "expected_topic": "negative_sentiment"
+  },
+  {
+    "id": "t018",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551008",
+    "content": "i want to speak to a human agent please",
+    "expected_escalate": true,
+    "expected_topic": "human_requested"
+  },
+  {
+    "id": "t019",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551009",
+    "content": "refresh token expired too fast. is there a way to extend?",
+    "expected_escalate": false,
+    "expected_topic": "oauth_authentication"
+  },
+  {
+    "id": "t020",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551010",
+    "content": "thx for the help earlier! working now 👍",
+    "expected_escalate": false,
+    "expected_topic": "positive_feedback"
+  },
+  {
+    "id": "t021",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551011",
+    "content": "getting 401 error when calling /v1/users endpoint. api key is correct",
+    "expected_escalate": false,
+    "expected_topic": "authentication_errors"
+  },
+  {
+    "id": "t022",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551012",
+    "content": "can i get a refund? accidentally upgraded to pro but dont need it",
+    "expected_escalate": true,
+    "expected_topic": "refund_request"
+  },
+  {
+    "id": "t023",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551013",
+    "content": "followup: still waiting for response on my webhook issue",
+    "expected_escalate": false,
+    "expected_topic": "followup"
+  },
+  {
+    "id": "t024",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551014",
+    "content": "is there a sandbox environment for testing?",
+    "expected_escalate": false,
+    "expected_topic": "sandbox"
+  },
+  {
+    "id": "t025",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551015",
+    "content": "how long does data export take? been waiting 30 mins",
+    "expected_escalate": false,
+    "expected_topic": "data_export"
+  },
+  {
+    "id": "t026",
+    "channel": "web_form",
+    "customer_email": "alex.thompson@company.com",
+    "customer_name": "Alex Thompson",
+    "subject": "API Key Best Practices",
+    "content": "Hello, I'm new to using APIs and want to make sure I'm following best practices for API key management. Should I create separate keys for development and production? How often should I rotate them? And what's the best way to store them securely? Any documentation or guides you can point me to would be appreciated. Thank you!",
+    "expected_escalate": false,
+    "expected_topic": "api_key_management"
+  },
+  {
+    "id": "t027",
+    "channel": "web_form",
+    "customer_email": "maria.garcia@techcorp.io",
+    "customer_name": "Maria Garcia",
+    "subject": "Webhook Signature Verification",
+    "content": "Hi TechCorp Support, I'm implementing webhook signature verification in Python but always getting 'invalid signature' error. I'm using the X-TechCorp-Signature header and hashing the raw payload with SHA-256. Am I missing something? Here's my code snippet: [code]. Can you review and let me know what's wrong? Thanks in advance!",
+    "expected_escalate": false,
+    "expected_topic": "webhooks"
+  },
+  {
+    "id": "t028",
+    "channel": "web_form",
+    "customer_email": "james.wilson@startup.co",
+    "customer_name": "James Wilson",
+    "subject": "Rate Limit Headers Not Showing",
+    "content": "Hello, I'm making API calls but not seeing the rate limit headers (X-RateLimit-Limit, etc.) in the response. I'm using Python requests library. Are these headers only available on certain endpoints? Or do I need to enable them somewhere? This is important for implementing proper rate limit handling in our app. Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "rate_limits"
+  },
+  {
+    "id": "t029",
+    "channel": "web_form",
+    "customer_email": "contact@smallbusiness.com",
+    "customer_name": "Small Business Owner",
+    "subject": "Upgrade from Free to Pro",
+    "content": "Hi, I'm currently on the Free plan and would like to upgrade to Pro. Will there be any downtime during the upgrade? Do I need to change my API integration? Also, will I be charged immediately or at the next billing cycle? I want to make sure the upgrade process is smooth for our users. Looking forward to your response!",
+    "expected_escalate": false,
+    "expected_topic": "billing"
+  },
+  {
+    "id": "t030",
+    "channel": "web_form",
+    "customer_email": "cto@enterprise.com",
+    "customer_name": "CTO Enterprise",
+    "subject": "Enterprise Plan Features",
+    "content": "Hello, we're evaluating TechCorp for enterprise use. Can you provide detailed information about Enterprise plan features? Specifically interested in: SLA guarantees, dedicated support channel, custom rate limits, SSO integration, audit logs, and compliance certifications (SOC2, HIPAA). Also need pricing for 100+ developers. Please connect us with sales team.",
+    "expected_escalate": true,
+    "expected_topic": "pricing_inquiry"
+  },
+  {
+    "id": "t031",
+    "channel": "web_form",
+    "customer_email": "frustrated@developer.com",
+    "customer_name": "Frustrated Developer",
+    "subject": "API Documentation is Incomplete",
+    "content": "Your API documentation is missing critical information. The OAuth 2.0 section doesn't explain how to handle token refresh properly. I've been stuck on this for 2 days! This is really frustrating and wasting our development time. Please update your docs with clear examples. Very disappointed with the developer experience so far.",
+    "expected_escalate": true,
+    "expected_topic": "negative_sentiment"
+  },
+  {
+    "id": "t032",
+    "channel": "web_form",
+    "customer_email": "security@company.com",
+    "customer_name": "Security Team",
+    "subject": "Security Audit - API Key Compromise",
+    "content": "We suspect one of our API keys may have been compromised. What's the process for immediately revoking the key and investigating unauthorized access? We need to know: 1) How to revoke immediately, 2) How to audit recent API usage, 3) Best practices for key rotation. This is urgent. Please respond ASAP.",
+    "expected_escalate": false,
+    "expected_topic": "security"
+  },
+  {
+    "id": "t033",
+    "channel": "web_form",
+    "customer_email": "newbie@coder.com",
+    "customer_name": "New Developer",
+    "subject": "First API Call - Getting Started",
+    "content": "Hi! I just signed up and trying to make my first API call. I created an API key but getting 401 Unauthorized error. Here's my curl command: curl -H 'Authorization: my_api_key' https://api.techcorp.com/v1/users. What am I doing wrong? Is there a getting started guide or tutorial you can recommend? Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "authentication_errors"
+  },
+  {
+    "id": "t034",
+    "channel": "web_form",
+    "customer_email": "billing@company.com",
+    "customer_name": "Billing Department",
+    "subject": "Invoice Download",
+    "content": "Hello, I need to download invoices for the past 6 months for our accounting records. Where can I find these in the dashboard? Also, can invoices be sent automatically to our accounting email each month? We use QuickBooks for accounting. Is there an integration available? Thank you!",
+    "expected_escalate": false,
+    "expected_topic": "billing"
+  },
+  {
+    "id": "t035",
+    "channel": "web_form",
+    "customer_email": "team@startup.io",
+    "customer_name": "Startup Team",
+    "subject": "Team Member Access Management",
+    "content": "Hi, we have 5 developers on our team and want to share API access. What's the best way to manage this? Should we create one shared API key or individual keys for each developer? We want to track usage per developer and be able to revoke access if someone leaves. What do you recommend? Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "team_management"
+  },
+  {
+    "id": "t036",
+    "channel": "email",
+    "customer_email": "refund@customer.com",
+    "customer_name": "Refund Request",
+    "subject": "Request for Refund",
+    "content": "Hello, I was charged for the Pro plan but I meant to cancel during the trial. Can I get a refund? I haven't really used the service much. This was an honest mistake. Please let me know the refund process. Thank you.",
+    "expected_escalate": true,
+    "expected_topic": "refund_request"
+  },
+  {
+    "id": "t037",
+    "channel": "email",
+    "customer_email": "competitor@otherapi.com",
+    "customer_name": "Competitor Inquiry",
+    "subject": "Comparison with CompetitorAPI",
+    "content": "Hi, I'm currently using CompetitorAPI and considering switching to TechCorp. How do you compare in terms of pricing, features, and reliability? Specifically interested in rate limits, webhook reliability, and support quality. Why should I switch from CompetitorAPI? Thanks!",
+    "expected_escalate": true,
+    "expected_topic": "competitor_inquiry"
+  },
+  {
+    "id": "t038",
+    "channel": "email",
+    "customer_email": "integration@developer.com",
+    "customer_name": "Integration Developer",
+    "subject": "Custom Integration Question",
+    "content": "Hello, we're building a custom integration between TechCorp and our internal systems. Is there a way to batch multiple API calls into a single request? Also, do you support GraphQL or only REST? We're looking to optimize our API usage and reduce the number of round trips. Any guidance would be appreciated!",
+    "expected_escalate": false,
+    "expected_topic": "integration"
+  },
+  {
+    "id": "t039",
+    "channel": "email",
+    "customer_email": "performance@company.com",
+    "customer_name": "Performance Team",
+    "subject": "API Response Time Issues",
+    "content": "Hi, we're experiencing slow API response times (2-3 seconds) for simple requests. This is affecting our user experience. Is this normal? Our servers are in US-East region. Are there any performance optimizations you recommend? Should we be using a different region or CDN? This is becoming critical for our production app.",
+    "expected_escalate": false,
+    "expected_topic": "performance"
+  },
+  {
+    "id": "t040",
+    "channel": "email",
+    "customer_email": "compliance@regulated.com",
+    "customer_name": "Compliance Officer",
+    "subject": "GDPR Compliance Question",
+    "content": "Hello, we're based in EU and need to ensure GDPR compliance. Does TechCorp store any EU customer data outside of EU? Do you offer data residency options? Can we request deletion of all customer data? We need this information for our compliance audit. Please provide detailed answers. Thank you!",
+    "expected_escalate": false,
+    "expected_topic": "compliance"
+  },
+  {
+    "id": "t041",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551016",
+    "content": "my webhook stopped working suddenly. was fine yesterday",
+    "expected_escalate": false,
+    "expected_topic": "webhooks"
+  },
+  {
+    "id": "t042",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551017",
+    "content": "how do i add team members to my account?",
+    "expected_escalate": false,
+    "expected_topic": "team_management"
+  },
+  {
+    "id": "t043",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551018",
+    "content": "getting 500 error on /v1/data endpoint",
+    "expected_escalate": false,
+    "expected_topic": "server_errors"
+  },
+  {
+    "id": "t044",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551019",
+    "content": "can u help me understand the billing cycle? when am i charged?",
+    "expected_escalate": false,
+    "expected_topic": "billing"
+  },
+  {
+    "id": "t045",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551020",
+    "content": "is there a status page for api outages?",
+    "expected_escalate": false,
+    "expected_topic": "status"
+  },
+  {
+    "id": "t046",
+    "channel": "web_form",
+    "customer_email": "mobile@developer.com",
+    "customer_name": "Mobile Developer",
+    "subject": "Mobile SDK Availability",
+    "content": "Hi, do you have official SDKs for iOS and Android? I see Python, JavaScript, Go, and Ruby in the docs but couldn't find mobile SDKs. Are there community-maintained SDKs you recommend? Or should I just use the REST API directly from mobile apps? What's the recommended approach for mobile integration? Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "sdks"
+  },
+  {
+    "id": "t047",
+    "channel": "web_form",
+    "customer_email": "testing@qa.com",
+    "customer_name": "QA Engineer",
+    "subject": "Testing Environment Setup",
+    "content": "Hello, I'm setting up our testing environment and need to know: 1) Is there a sandbox/test environment? 2) Do test API calls count against rate limits? 3) Can we create test users/data without affecting production? 4) Are there any testing best practices you recommend? We want to set this up correctly from the start. Thank you!",
+    "expected_escalate": false,
+    "expected_topic": "testing"
+  },
+  {
+    "id": "t048",
+    "channel": "web_form",
+    "customer_email": "error@handling.com",
+    "customer_name": "Error Handler",
+    "subject": "Error Handling Best Practices",
+    "content": "Hi, what's the recommended approach for handling API errors? Should we retry on all 5xx errors? What about 4xx errors? Is there a standard error response format we should expect? Are there any errors that should never be retried? We want to implement robust error handling in our production app. Any documentation or examples? Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "error_handling"
+  },
+  {
+    "id": "t049",
+    "channel": "web_form",
+    "customer_email": "version@api.com",
+    "customer_name": "API Versioning",
+    "subject": "API Versioning and Deprecation",
+    "content": "Hello, how do you handle API versioning? If we build against v1, will it continue to work indefinitely? How much notice do you give before deprecating an API version? Where can we find the deprecation schedule? We want to avoid breaking changes in our integration. Please provide details on your versioning policy. Thank you!",
+    "expected_escalate": false,
+    "expected_topic": "versioning"
+  },
+  {
+    "id": "t050",
+    "channel": "web_form",
+    "customer_email": "monitoring@ops.com",
+    "customer_name": "DevOps Team",
+    "subject": "Monitoring and Alerting Setup",
+    "content": "Hi, we want to set up monitoring for TechCorp API usage and errors. Do you provide any monitoring endpoints or metrics APIs? Can we get webhook notifications for errors or rate limit warnings? Do you integrate with monitoring tools like Datadog, New Relic, or PagerDuty? We want proactive alerting for our production environment. Thanks!",
+    "expected_escalate": false,
+    "expected_topic": "monitoring"
+  },
+  {
+    "id": "t051",
+    "channel": "email",
+    "customer_email": "thanks@happy.com",
+    "customer_name": "Happy Customer",
+    "subject": "Thank You for Great Support!",
+    "content": "Hi TechCorp Team, I just wanted to say thank you for the excellent support! My issue was resolved quickly and the support agent was very helpful. It's rare to find such good customer service these days. Keep up the great work! We're very happy with TechCorp and will definitely recommend you to other developers. Best regards!",
+    "expected_escalate": false,
+    "expected_topic": "positive_feedback"
+  },
+  {
+    "id": "t052",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551021",
+    "content": "awesome! got it working. thx!",
+    "expected_escalate": false,
+    "expected_topic": "positive_feedback"
+  },
+  {
+    "id": "t053",
+    "channel": "web_form",
+    "customer_email": "suggestion@user.com",
+    "customer_name": "Feature Requester",
+    "subject": "Feature Request: Bulk Operations",
+    "content": "Hi TechCorp, love your API! One feature that would really help us is bulk operations. For example, creating/updating multiple users in a single API call. This would reduce the number of API calls we need to make and improve performance. Is this on your roadmap? We'd be happy to provide feedback on the feature design. Thanks for considering!",
+    "expected_escalate": false,
+    "expected_topic": "feature_request"
+  },
+  {
+    "id": "t054",
+    "channel": "email",
+    "customer_email": "sue@legal.com",
+    "customer_name": "Legal Action",
+    "subject": "Notice of Intent to Sue",
+    "content": "TechCorp Inc., This is a formal notice that we intend to file a lawsuit against your company for breach of contract and damages resulting from your API outage on March 1st. Our client suffered significant financial losses. Unless we receive adequate compensation within 14 days, we will proceed with legal action. This is your final warning. Legal Counsel",
+    "expected_escalate": true,
+    "expected_topic": "legal_threat"
+  },
+  {
+    "id": "t055",
+    "channel": "whatsapp",
+    "customer_phone": "+14155551022",
+    "content": "need help with oauth. can someone call me?",
+    "expected_escalate": true,
+    "expected_topic": "human_requested"
+  }
+]
