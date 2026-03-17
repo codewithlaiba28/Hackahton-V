@@ -1,0 +1,14 @@
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: fte-api-service
+  namespace: customer-success-fte
+spec:
+  selector:
+    app: fte-api
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+  type: ClusterIP

@@ -1,0 +1,7 @@
+# Kubernetes namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: customer-success-fte
+  labels:
+    app: customer-success-fte

@@ -1,0 +1,23 @@
+# Kubernetes ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fte-config
+  namespace: customer-success-fte
+data:
+  # Application config
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  
+  # Database
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "customer_success_fte"
+  
+  # Kafka
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-headless:9092"
+  
+  # App settings
+  MAX_EMAIL_LENGTH: "2000"
+  MAX_WHATSAPP_LENGTH: "1600"
+  MAX_WEBFORM_LENGTH: "1000"
