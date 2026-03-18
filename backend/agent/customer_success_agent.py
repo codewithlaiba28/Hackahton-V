@@ -14,7 +14,7 @@ from agent.prompts import CUSTOMER_SUCCESS_SYSTEM_PROMPT
 # Define production agent
 customer_success_agent = Agent(
     name="Customer Success FTE",
-    model="gpt-4o",
+    model="llama3.1-70b",
     instructions=CUSTOMER_SUCCESS_SYSTEM_PROMPT,
     tools=[
         search_knowledge_base,
@@ -38,13 +38,13 @@ async def run_agent(message: str, context: dict) -> dict:
         Agent result dict with response, tool_calls, etc.
     """
     result = await Runner.run(
-        agent=customer_success_agent,
-        input=message,
+        customer_success_agent,
+        message,
         context=context,
     )
     
     return {
-        "output": result.output,
+        "output": result.final_output,
         "tool_calls": result.tool_calls,
         "usage": result.usage,
     }

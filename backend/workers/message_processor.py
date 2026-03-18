@@ -2,7 +2,13 @@
 
 import asyncio
 import logging
+from dotenv import load_dotenv
+import os
 from datetime import datetime
+
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv()
 
 from database.queries import (
     get_pool,

@@ -23,7 +23,7 @@ async def create_migrations_table(conn):
             applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )
     """)
-    print("✓ Created _migrations table")
+    print("DONE Created _migrations table")
 
 
 async def get_applied_migrations(conn):
@@ -40,7 +40,7 @@ async def apply_migration(conn, migration_name: str, sql: str):
             "INSERT INTO _migrations (migration_name) VALUES ($1)",
             migration_name
         )
-    print(f"✓ Applied migration: {migration_name}")
+    print(f"DONE Applied migration: {migration_name}")
 
 
 async def run_migrations():
@@ -72,7 +72,7 @@ async def run_migrations():
             sql = migration_file.read_text()
             await apply_migration(conn, migration_name, sql)
         
-        print("\n✅ All migrations applied successfully")
+        print("\n[DONE] All migrations applied successfully")
         
     finally:
         await conn.close()
@@ -103,16 +103,16 @@ async def verify_schema():
             '_migrations'
         }
         
-        print(f"\n📊 Database Tables ({len(table_names)}):")
+        print(f"\nSTATS: Database Tables ({len(table_names)}):")
         for table in sorted(table_names):
-            status = "✓" if table in expected_tables or table == '_migrations' else "⚠"
+            status = "PASS" if table in expected_tables or table == '_migrations' else "WARN"
             print(f"  {status} {table}")
         
         missing = expected_tables - set(table_names)
         if missing:
             print(f"\n⚠ Missing tables: {missing}")
         else:
-            print("\n✅ All expected tables present")
+            print("\n[DONE] All expected tables present")
         
     finally:
         await conn.close()

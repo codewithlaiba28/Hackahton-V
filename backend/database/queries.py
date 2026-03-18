@@ -228,6 +228,30 @@ async def update_conversation_sentiment(
 # MESSAGE QUERIES
 # =============================================================================
 
+async def get_real_customers(
+    conn: asyncpg.Connection,
+    limit: int = 50
+) -> List[Dict[str, Any]]:
+    """Get list of real customers with their stats."""
+    rows = await conn.fetch(
+        """
+        SELECT 
+            c.id, 
+            c.name, 
+            c.email, 
+            c.phone, 
+            COUNT(t.id) as total_tickets,
+            MAX(t.created_at) as last_contact
+        FROM customers c
+        LEFT JOIN tickets t ON c.id = t.customer_id
+        GROUP BY c.id
+        ORDER BY MAX(t.created_at) DESC NULLS LAST
+        LIMIT $1
+        """,
+        limit
+    )
+    return [dict(row) for row in rows]
+
 async def store_message(
     conn: asyncpg.Connection,
     conversation_id: str,
@@ -378,6 +402,31 @@ async def get_ticket_with_messages(
     return ticket
 
 
+async def get_recent_tickets(
+    conn: asyncpg.Connection,
+    limit: int = 50
+) -> List[Dict[str, Any]]:
+    """Get recent tickets."""
+    rows = await conn.fetch(
+        """
+        SELECT 
+            t.id, 
+            t.source_channel as channel, 
+            t.issue as subject, 
+            t.priority, 
+            t.status, 
+            t.created_at as time,
+            c.email as customer
+        FROM tickets t
+        LEFT JOIN customers c ON t.customer_id = c.id
+        ORDER BY t.created_at DESC
+        LIMIT $1
+        """,
+        limit
+    )
+    return [dict(row) for row in rows]
+
+
 # =============================================================================
 # KNOWLEDGE BASE QUERIES
 # =============================================================================
@@ -482,6 +531,70 @@ async def get_channel_metrics_last_24h(
     )
     return [dict(row) for row in rows]
 
+
+async def get_advanced_metrics(
+    conn: asyncpg.Connection
+) -> Dict[str, Any]:
+    """Get advanced metrics for analytics dashboard (weekly, categories, trends)."""
+    # 1. Weekly Ticket Volume (last 7 days grouped by day name)
+    weekly_rows = await conn.fetch(
+        """
+        SELECT 
+            to_char(created_at, 'Dy') as day,
+            COUNT(*) as tickets,
+            COUNT(*) FILTER (WHERE status IN ('resolved', 'closed')) as resolved,
+            COUNT(*) FILTER (WHERE status = 'escalated') as escalated
+        FROM tickets
+        WHERE created_at > NOW() - INTERVAL '7 days'
+        GROUP BY to_char(created_at, 'Dy'), EXTRACT(ISODOW FROM created_at)
+        ORDER BY EXTRACT(ISODOW FROM created_at)
+        """
+    )
+    
+    # 2. Top Categories
+    category_rows = await conn.fetch(
+        """
+        SELECT 
+            COALESCE(category, 'Uncategorized') as category,
+            COUNT(*) as count
+        FROM tickets
+        GROUP BY COALESCE(category, 'Uncategorized')
+        ORDER BY count DESC
+        LIMIT 6
+        """
+    )
+    
+    total_tickets = sum(row['count'] for row in category_rows) if category_rows else 1
+    categories_data = [
+        {
+            "category": row["category"],
+            "count": row["count"],
+            "pct": int((row["count"] / total_tickets) * 100)
+        }
+        for row in category_rows
+    ]
+    
+    # 3. Sentiment Trend (last 4 weeks)
+    # Simplified sentiment logic for real responses
+    trend_rows = await conn.fetch(
+        """
+        SELECT 
+            'Week ' || CEIL((EXTRACT(EPOCH FROM (NOW() - recorded_at)) / 604800)) as period,
+            COUNT(*) FILTER (WHERE metric_value >= 0.6) * 100 / GREATEST(COUNT(*), 1) as positive,
+            COUNT(*) FILTER (WHERE metric_value >= 0.3 AND metric_value < 0.6) * 100 / GREATEST(COUNT(*), 1) as neutral,
+            COUNT(*) FILTER (WHERE metric_value < 0.3) * 100 / GREATEST(COUNT(*), 1) as negative
+        FROM agent_metrics
+        WHERE metric_name = 'sentiment_score' AND recorded_at > NOW() - INTERVAL '28 days'
+        GROUP BY CEIL((EXTRACT(EPOCH FROM (NOW() - recorded_at)) / 604800))
+        ORDER BY CEIL((EXTRACT(EPOCH FROM (NOW() - recorded_at)) / 604800)) DESC
+        """
+    )
+    
+    return {
+        "weeklyData": [dict(r) for r in weekly_rows],
+        "topCategories": categories_data,
+        "sentimentTrend": [dict(r) for r in trend_rows]
+    }
 
 # =============================================================================
 # UTILITY FUNCTIONS

@@ -88,9 +88,35 @@ class ResponseInput(BaseModel):
     customer_phone: Optional[str] = Field(default=None, description="Customer phone")
 
 
-# =============================================================================
-# @function_tool DECORATED FUNCTIONS
-# =============================================================================
+async def get_embedding(text: str) -> List[float]:
+    """Generate embedding using OpenAI (or fallback)."""
+    import os
+    from openai import OpenAI
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    is_openai = api_key and not api_key.startswith("csk-")
+    
+    if is_openai:
+        try:
+            client = OpenAI(api_key=api_key)
+            response = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=text
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logger.error(f"OpenAI embedding failed: {e}")
+    
+    # Deterministic fallback for local testing without OpenAI key
+    import hashlib
+    h = hashlib.sha256(text.encode()).digest()
+    dummy = []
+    for i in range(1536):
+        # Create a semi-random float between -1 and 1 based on hash
+        val = (int.from_bytes(h[i%32 : (i%32)+1], "big") / 128.0) - 1.0
+        dummy.append(val)
+    return dummy
+
 
 @function_tool
 async def search_knowledge_base(input: KnowledgeSearchInput) -> str:
@@ -109,8 +135,51 @@ async def search_knowledge_base(input: KnowledgeSearchInput) -> str:
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            # Generate embedding (dummy for now - replace with real embedding API)
-            embedding = [0.1] * 1536  # Placeholder
+            # Generate real/deterministic embedding
+            embedding = await get_embedding(input.query)
+            
+            results = await db_search_kb(
+                conn=conn,
+                embedding=embedding,
+                query=input.query,
+                max_results=input.max_results,
+                category=input.category
+            )
+            
+            if not results:
+                return "No relevant documentation found. Consider escalating to human support."
+            
+            # Format results
+            formatted = []
+            for r in results:
+                formatted.append(
+                    f"**{r['title']}** (relevance: {r['similarity']:.2f})\n"
+                    f"{r['content'][:500]}..."
+                )
+            
+            return "\n\n---\n\n".join(formatted)
+            
+    except Exception as e:
+        logger.error(f"Knowledge base search failed: {e}")
+        return "Knowledge base temporarily unavailable. Please try again or escalate."
+async def search_knowledge_base(input: KnowledgeSearchInput) -> str:
+    """
+    Search product documentation for relevant information.
+    
+    Use this tool when the customer asks questions about product features,
+    how to use something, or needs technical information.
+    
+    Args:
+        input: Search parameters including query and optional filters
+    
+    Returns:
+        Formatted search results with relevance scores
+    """
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # Generate real/deterministic embedding
+            embedding = await get_embedding(input.query)
             
             results = await db_search_kb(
                 conn=conn,

@@ -12,14 +12,14 @@ from pathlib import Path
 def check_file(path, description):
     """Check if file exists and report status."""
     exists = os.path.exists(path)
-    status = "✅" if exists else "❌"
+    status = "[PASS]" if exists else "[FAIL]"
     print(f"{status} {description}: {path}")
     return exists
 
 def check_dir(path, description):
     """Check if directory exists and report status."""
     exists = os.path.isdir(path)
-    status = "✅" if exists else "❌"
+    status = "[PASS]" if exists else "[FAIL]"
     print(f"{status} {description}: {path}")
     return exists
 
@@ -29,11 +29,11 @@ def check_json_file(path, description, min_items=0):
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         count = len(data) if isinstance(data, list) else 1
-        status = "✅" if count >= min_items else "❌"
+        status = "[PASS]" if count >= min_items else "[FAIL]"
         print(f"{status} {description}: {count} items (min: {min_items})")
         return count >= min_items
     except Exception as e:
-        print(f"❌ {description}: {e}")
+        print(f"[ERROR] {description}: {e}")
         return False
 
 def main():
@@ -99,7 +99,7 @@ def main():
     
     print("\n" + "=" * 60)
     if all_pass:
-        print("✅ ALL CHECKS PASSED - Phase 1 Complete!")
+        print("[SUCCESS] ALL CHECKS PASSED - Phase 1 Complete!")
         print("\nNext Steps:")
         print("1. Install dependencies: pip install -r requirements.txt")
         print("2. Set ANTHROPIC_API_KEY in .env")
@@ -107,7 +107,7 @@ def main():
         print("4. Test MCP server: python backend/src/mcp_server.py")
         return 0
     else:
-        print("❌ SOME CHECKS FAILED - Review missing items above")
+        print("[FAIL] SOME CHECKS FAILED - Review missing items above")
         return 1
 
 if __name__ == "__main__":

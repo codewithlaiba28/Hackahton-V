@@ -52,7 +52,7 @@ async def get_embedding(text: str) -> List[float]:
     """Generate embedding using OpenAI."""
     if not OPENAI_AVAILABLE or not OPENAI_API_KEY:
         # Return dummy embedding for testing
-        print("⚠ OpenAI not available, using dummy embedding")
+        print("WARN: OpenAI not available, using dummy embedding")
         return [0.1] * 1536
     
     client = OpenAI(api_key=OPENAI_API_KEY)
@@ -73,32 +73,32 @@ async def seed_knowledge_base():
     docs_path = Path(__file__).parent.parent.parent / "context" / "product-docs.md"
     
     if not docs_path.exists():
-        print(f"⚠ Product docs not found at {docs_path}")
+        print(f"WARN: Product docs not found at {docs_path}")
         return
     
-    print(f"\n📖 Reading: {docs_path}")
+    print(f"\nREAD: Reading: {docs_path}")
     content = docs_path.read_text(encoding='utf-8')
     
     # Parse sections
     sections = parse_markdown_sections(content)
-    print(f"📑 Found {len(sections)} sections")
+    print(f"INFO: Found {len(sections)} sections")
     
     # Connect to database
-    print(f"\n🔗 Connecting to database: {DATABASE_URL}")
+    print(f"\nCONN: Connecting to database: {DATABASE_URL}")
     conn = await asyncpg.connect(DATABASE_URL)
     
     try:
         # Check if already seeded
         count = await conn.fetchval("SELECT COUNT(*) FROM knowledge_base")
         if count > 0:
-            print(f"⚠ Knowledge base already has {count} entries")
+            print(f"WARN: Knowledge base already has {count} entries")
             response = input("Continue anyway? (y/n): ")
             if response.lower() != 'y':
                 print("Aborted")
                 return
         
         # Insert sections
-        print("\n📝 Inserting sections...")
+        print("\nINSERT: Inserting sections...")
         inserted = 0
         
         for title, content in sections:
@@ -108,7 +108,7 @@ async def seed_knowledge_base():
                 continue
             
             # Generate embedding
-            print(f"  → Generating embedding for: {title}")
+            print(f"  STEP: Generating embedding for: {title}")
             embedding = await get_embedding(f"{title}: {content}")
             
             # Determine category
@@ -130,23 +130,23 @@ async def seed_knowledge_base():
             )
             inserted += 1
         
-        print(f"\n✅ Inserted {inserted} knowledge base entries")
+        print(f"\n[DONE] Inserted {inserted} knowledge base entries")
         
         # Verify
         final_count = await conn.fetchval("SELECT COUNT(*) FROM knowledge_base")
-        print(f"📊 Total entries: {final_count}")
+        print(f"STATS: Total entries: {final_count}")
         
         # Test search
-        print("\n🔍 Testing search...")
+        print("\nSEARCH: Testing search...")
         test_query = "API key"
         embedding = await get_embedding(test_query)
         results = await search_knowledge_base(conn, embedding, test_query, max_results=3)
         
         if results:
-            print(f"✓ Search returned {len(results)} results")
+            print(f"[PASS] Search returned {len(results)} results")
             print(f"  Top result: {results[0]['title']} (similarity: {results[0]['similarity']:.2f})")
         else:
-            print("⚠ Search returned no results")
+            print("[FAIL] Search returned no results")
         
     finally:
         await conn.close()
