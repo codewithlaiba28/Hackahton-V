@@ -23,10 +23,12 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { useSession, signOut } from "@/lib/auth-client";
 
 /* ─── NAV ─── */
 function Navbar() {
   const [open, setOpen] = useState(false);
+  const { data: session } = useSession();
   const links = [
     { label: "Features", href: "#features" },
     { label: "How It Works", href: "#how-it-works" },
@@ -56,14 +58,29 @@ function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Link href="/login" className="px-5 py-2 rounded-lg text-sm font-medium transition-all" style={{ color: "var(--text-secondary)", border: "1px solid var(--border-primary)" }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-hover)"; e.currentTarget.style.color = "var(--text-primary)" }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-primary)"; e.currentTarget.style.color = "var(--text-secondary)" }}>
-            Sign In
-          </Link>
-          <Link href="/signup" className="px-5 py-2 rounded-lg text-sm font-bold text-white transition-all animate-gradient" style={{ background: "var(--gradient-primary)" }}>
-            Get Started
-          </Link>
+          {session ? (
+            <>
+              <Link href="/dashboard" className="px-5 py-2 rounded-lg text-sm font-medium transition-all" style={{ color: "var(--text-secondary)", border: "1px solid var(--border-primary)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-hover)"; e.currentTarget.style.color = "var(--text-primary)" }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-primary)"; e.currentTarget.style.color = "var(--text-secondary)" }}>
+                Dashboard
+              </Link>
+              <button onClick={() => signOut()} className="px-5 py-2 rounded-lg text-sm font-bold text-white transition-all animate-gradient" style={{ background: "var(--gradient-primary)" }}>
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="px-5 py-2 rounded-lg text-sm font-medium transition-all" style={{ color: "var(--text-secondary)", border: "1px solid var(--border-primary)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-hover)"; e.currentTarget.style.color = "var(--text-primary)" }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-primary)"; e.currentTarget.style.color = "var(--text-secondary)" }}>
+                Sign In
+              </Link>
+              <Link href="/signup" className="px-5 py-2 rounded-lg text-sm font-bold text-white transition-all animate-gradient" style={{ background: "var(--gradient-primary)" }}>
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile toggle */}
@@ -79,8 +96,14 @@ function Navbar() {
             <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="text-sm py-2" style={{ color: "var(--text-secondary)" }}>{l.label}</a>
           ))}
           <div className="flex gap-3 pt-2">
-            <Link href="/login" className="flex-1 text-center py-2 rounded-lg text-sm" style={{ border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Sign In</Link>
-            <Link href="/signup" className="flex-1 text-center py-2 rounded-lg text-sm font-bold text-white" style={{ background: "var(--gradient-primary)" }}>Get Started</Link>
+            {session ? (
+              <button onClick={() => signOut()} className="flex-1 text-center py-2 rounded-lg text-sm font-bold text-white" style={{ background: "var(--gradient-primary)" }}>Logout</button>
+            ) : (
+              <>
+                <Link href="/login" className="flex-1 text-center py-2 rounded-lg text-sm" style={{ border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Sign In</Link>
+                <Link href="/signup" className="flex-1 text-center py-2 rounded-lg text-sm font-bold text-white" style={{ background: "var(--gradient-primary)" }}>Get Started</Link>
+              </>
+            )}
           </div>
         </div>
       )}

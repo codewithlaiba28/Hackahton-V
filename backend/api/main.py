@@ -12,6 +12,9 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 load_dotenv()  # Also try default .env
 
 from database.queries import get_pool, close_pool
+from src.agent.sentiment import SentimentAnalyzer
+
+sentiment_analyzer = SentimentAnalyzer()
 
 from kafka_client import kafka_producer
 
@@ -19,19 +22,57 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+import asyncio
+
+async def poll_gmail_loop():
+    """Background task to poll Gmail every 60 seconds."""
+    from src.channels.gmail_handler import GmailHandler
+    try:
+        handler = GmailHandler()
+        while True:
+            try:
+                messages = await handler.fetch_messages()
+                if messages:
+                    for msg in messages:
+                        logger.info(f"Background Gmail fetched message from {msg.customer_email}")
+                        await process_direct_message(
+                            channel="email",
+                            content=msg.content,
+                            customer_email=msg.customer_email,
+                            customer_name=msg.customer_email.split('@')[0],
+                            subject=msg.metadata.get("subject", "Support Inquiry")
+                        )
+            except Exception as loop_e:
+                logger.error(f"Error in Gmail poll loop: {loop_e}")
+            await asyncio.sleep(60)
+    except Exception as e:
+        logger.error(f"Failed to start Gmail background poller: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     # Startup
     logger.info("Starting Customer Success FTE API...")
-    await kafka_producer.start()
-    await get_pool()
-    logger.info("API startup complete")
+    bg_tasks = []
+    try:
+        await kafka_producer.start()
+        await get_pool()
+        # Start Gmail poller
+        if os.getenv("GMAIL_POLLING_ENABLED", "true").lower() == "true":
+            gmail_task = asyncio.create_task(poll_gmail_loop())
+            bg_tasks.append(gmail_task)
+            logger.info("Started Gmail background polling.")
+        
+        logger.info("API startup complete")
+    except Exception as e:
+        logger.error(f"Startup dependency error: {e}. Continuing in limited mode.")
     
     yield
     
     # Shutdown
     logger.info("Shutting down Customer Success FTE API...")
+    for t in bg_tasks:
+        t.cancel()
     await kafka_producer.stop()
     await close_pool()
     logger.info("API shutdown complete")
@@ -79,6 +120,81 @@ async def get_channel_metrics():
     return {"metrics": metrics}
 
 
+async def process_direct_message(channel: str, content: str, customer_email: str = None, customer_phone: str = None, customer_name: str = "Unknown"):
+    """Helper function to process messages without Kafka."""
+    from agent.customer_success_agent import run_agent
+    from database.queries import (
+        create_customer, find_customer_by_email, find_customer_by_phone, 
+        create_conversation, store_message, record_metric, 
+        update_conversation_sentiment
+    )
+    
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # 1. Resolve customer
+        customer = None
+        if customer_email:
+            customer = await find_customer_by_email(conn, customer_email)
+        elif customer_phone:
+            customer = await find_customer_by_phone(conn, customer_phone)
+            
+        if not customer:
+            customer_id = await create_customer(conn, email=customer_email, phone=customer_phone, name=customer_name)
+        else:
+            customer_id = str(customer['id'])
+        
+        # 2. Start conversation
+        conv_id = await create_conversation(conn, customer_id, channel)
+        
+        # 3. Store inbound
+        role = "customer"
+        await store_message(conn, conv_id, channel, "inbound", role, content)
+        
+        # 3.5 Sentiment Analysis
+        sentiment_score, sentiment_label = sentiment_analyzer.analyze(content)
+        await update_conversation_sentiment(conn, conv_id, sentiment_score)
+        
+        # 4. Run agent
+        agent_result = await run_agent(
+            message=content,
+            context={"customer_id": customer_id, "conversation_id": conv_id, "channel": channel}
+        )
+        
+        # 5. Store outbound
+        outbound_content = agent_result.get("output", "")
+        await store_message(
+            conn=conn,
+            conversation_id=conv_id,
+            channel=channel,
+            direction="outbound",
+            role="agent",
+            content=outbound_content,
+            sentiment_score=sentiment_score
+        )
+        
+        # 6. Explicit Ticket Creation (Sentiment-based or first message)
+        # Check if conversation already has a ticket
+        from database.queries import get_recent_tickets, create_ticket as db_create_ticket
+        
+        should_create_ticket = sentiment_analyzer.should_escalate(sentiment_score)
+        
+        if should_create_ticket:
+            logger.info(f"Auto-creating ticket for {channel} due to sentiment {sentiment_score}")
+            await db_create_ticket(
+                conn=conn,
+                customer_id=customer_id,
+                conversation_id=conv_id,
+                channel=channel,
+                issue=f"Auto-escalated ({sentiment_label}): {content[:100]}...",
+                priority="high" if sentiment_score < 0.2 else "medium",
+                category="sentiment_escalation"
+            )
+        
+        # 7. Record metric
+        await record_metric(conn, "message_processed_direct", 1.0, channel)
+        
+        return f"tkt_{conv_id[:8]}", outbound_content
+
 @app.post("/support/submit")
 async def submit_support_form(request: Request):
     """Web form submission endpoint."""
@@ -104,39 +220,13 @@ async def submit_support_form(request: Request):
             ticket_id = f"ticket_{data['email']}_{id(event)}"
         else:
             # DIRECT PROCESSING (Kafka Bypass)
-            logger.info(f"Direct processing message for {data['email']}")
-            from agent.customer_success_agent import run_agent
-            from database.queries import create_customer, find_customer_by_email, create_conversation, store_message, record_metric
-            
-            pool = await get_pool()
-            async with pool.acquire() as conn:
-                # 1. Resolve customer
-                customer = await find_customer_by_email(conn, data['email'])
-                if not customer:
-                    customer_id = await create_customer(conn, email=data['email'], name=data['name'])
-                else:
-                    customer_id = str(customer['id'])
-                
-                # 2. Start conversation
-                conv_id = await create_conversation(conn, customer_id, "web_form")
-                
-                # 3. Store inbound
-                await store_message(conn, conv_id, "web_form", "inbound", "customer", data['message'])
-                
-                # 4. Run agent
-                agent_result = await run_agent(
-                    message=data['message'],
-                    context={"customer_id": customer_id, "conversation_id": conv_id, "channel": "web_form"}
-                )
-                
-                # 5. Store outbound
-                await store_message(conn, conv_id, "web_form", "outbound", "agent", agent_result.get("output", ""))
-                
-                # 6. Record metric
-                await record_metric(conn, "message_processed_direct", 1.0, "web_form")
-                
-                # Extract ticket ID if created by tool (simplified)
-                ticket_id = f"tkt_{conv_id[:8]}"
+            logger.info(f"Direct processing web form for {data['email']}")
+            ticket_id, _ = await process_direct_message(
+                channel="web_form",
+                content=data['message'],
+                customer_email=data['email'],
+                customer_name=data['name']
+            )
         
         return {
             "ticket_id": ticket_id,
@@ -188,6 +278,18 @@ async def get_tickets(limit: int = 50):
     return {"tickets": tickets}
 
 
+@app.get("/metrics/channels")
+async def get_channel_metrics():
+    """Get channel metrics for the dashboard."""
+    from database.queries import get_channel_metrics_last_24h
+    
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        metrics = await get_channel_metrics_last_24h(conn)
+            
+    return {"metrics": metrics}
+
+
 @app.get("/metrics/advanced")
 async def get_advanced_analytics():
     """Get advanced metrics for the analytics dashboard."""
@@ -215,6 +317,63 @@ async def get_customers_list(limit: int = 50):
             
     return {"customers": customers}
 
+
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request):
+    """Webhook endpoint for Twilio WhatsApp."""
+    try:
+        if request.headers.get("content-type", "").startswith("application/json"):
+             form_data = await request.json()
+        else:
+             form_data = dict(await request.form())
+             
+        from src.channels.whatsapp_handler import WhatsAppHandler
+        handler = WhatsAppHandler()
+        
+        msg = handler.parse_webhook(form_data)
+        logger.info(f"Received WhatsApp webhook from {msg.customer_phone}: {msg.content}")
+        
+        ticket_id, outbound = await process_direct_message(
+            channel="whatsapp",
+            content=msg.content,
+            customer_phone=msg.customer_phone,
+            customer_name=msg.customer_name or "WhatsApp User"
+        )
+        
+        # Try to send response back
+        await handler.send_response(msg.customer_phone, outbound)
+        
+        return {"status": "success", "ticket_id": ticket_id}
+    except Exception as e:
+        logger.error(f"WhatsApp webhook failed: {e}")
+        return {"status": "error", "detail": str(e)}
+
+
+@app.get("/webhook/gmail/poll")
+async def manual_gmail_poll():
+    """Manually trigger Gmail polling."""
+    from src.channels.gmail_handler import GmailHandler
+    try:
+        handler = GmailHandler()
+        messages = await handler.fetch_messages()
+        
+        processed = []
+        for msg in messages:
+            logger.info(f"Manually polled Gmail message from {msg.customer_email}")
+            ticket_id, _ = await process_direct_message(
+                channel="email",
+                content=msg.content,
+                customer_email=msg.customer_email,
+                customer_name=msg.customer_email.split('@')[0],
+                subject=msg.metadata.get("subject", "Support Inquiry")
+            )
+            processed.append({"id": msg.channel_message_id, "ticket_id": ticket_id})
+            
+        return {"status": "success", "processed_count": len(processed), "messages": processed}
+    except Exception as e:
+        logger.error(f"Manual Gmail poll failed: {e}")
+        return {"status": "error", "detail": str(e)}
 
 # Include channel routers (would be implemented in separate files)
 # from channels.web_form_handler import router as web_form_router

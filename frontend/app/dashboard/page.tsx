@@ -18,17 +18,17 @@ import {
 } from "lucide-react";
 
 const stats = [
-    { label: "Open Tickets", value: "24", change: "+3 today", icon: Ticket, color: "var(--accent-blue)" },
-    { label: "Resolved Today", value: "18", change: "85% rate", icon: CheckCircle2, color: "var(--accent-cyan)" },
-    { label: "Avg. Response", value: "2.4s", change: "-0.3s", icon: Clock, color: "var(--accent-purple)" },
-    { label: "Escalations", value: "4", change: "16% rate", icon: AlertTriangle, color: "var(--accent-pink)" },
+    { label: "Total Conversations", value: "0", change: "Live", icon: Ticket, color: "var(--accent-blue)" },
+    { label: "Avg Sentiment", value: "0%", change: "Overall", icon: CheckCircle2, color: "var(--accent-cyan)" },
+    { label: "Avg. Latency", value: "0.0s", change: "P95", icon: Clock, color: "var(--accent-purple)" },
+    { label: "Escalations", value: "0", change: "Recent", icon: AlertTriangle, color: "var(--accent-pink)" },
 ];
 
 
 const channelBreakdown = [
-    { channel: "Email", icon: Mail, count: 142, pct: 48, color: "var(--accent-blue)" },
-    { channel: "WhatsApp", icon: MessageSquare, count: 98, pct: 33, color: "var(--accent-cyan)" },
-    { channel: "Web Form", icon: Globe, count: 56, pct: 19, color: "var(--accent-purple)" },
+    { channel: "Email", icon: Mail, count: 0, pct: 0, color: "var(--accent-blue)" },
+    { channel: "WhatsApp", icon: MessageSquare, count: 0, pct: 0, color: "var(--accent-cyan)" },
+    { channel: "Web Form", icon: Globe, count: 0, pct: 0, color: "var(--accent-purple)" },
 ];
 
 function StatusBadge({ status }: { status: string }) {

@@ -24,6 +24,9 @@ from database.queries import (
 )
 from agent.customer_success_agent import run_agent
 from kafka_client import FTEKafkaConsumer, kafka_producer, TOPICS
+from src.channels.gmail_handler import GmailHandler
+from src.channels.whatsapp_handler import WhatsAppHandler
+from src.agent.sentiment import SentimentAnalyzer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,6 +40,10 @@ class MessageProcessor:
             topics=[TOPICS["tickets_incoming"]],
             group_id="fte-message-processor"
         )
+        # Initialize handlers
+        self.gmail_handler = GmailHandler()
+        self.whatsapp_handler = WhatsAppHandler()
+        self.sentiment_analyzer = SentimentAnalyzer()
     
     async def start(self):
         """Start the message processor."""
@@ -93,6 +100,9 @@ class MessageProcessor:
                     content=content,
                 )
                 
+                # Step 3.5: Sentiment Analysis
+                sentiment_score, sentiment_label = self.sentiment_analyzer.analyze(content)
+                
                 # Step 4: Run agent
                 agent_result = await run_agent(
                     message=content,
@@ -113,9 +123,33 @@ class MessageProcessor:
                     role="agent",
                     content=agent_result.get("output", ""),
                     latency_ms=latency_ms,
+                    sentiment_score=sentiment_score
                 )
                 
-                # Step 6: Record metrics
+                # Step 5.5: Implicit Escalation Check
+                if self.sentiment_analyzer.should_escalate(sentiment_score):
+                    logger.warning(f"Implicit escalation for customer {customer_id} due to sentiment {sentiment_score}")
+                    await db_create_ticket(
+                        conn=conn,
+                        customer_id=customer_id,
+                        conversation_id=conv_id,
+                        channel=channel,
+                        issue=f"Implicit Escalation: {content[:100]}",
+                        priority="high",
+                        category="sentiment_escalation"
+                    )
+
+                # Step 6: Send Response (External)
+                await self.send_external_response(
+                    channel=channel,
+                    customer_email=customer_email,
+                    customer_phone=customer_phone,
+                    subject=data.get("subject", "Support Update"),
+                    body=agent_result.get("output", ""),
+                    thread_id=data.get("thread_id")
+                )
+
+                # Step 7: Record metrics
                 await record_metric(
                     conn=conn,
                     metric_name="message_processed",
@@ -131,6 +165,23 @@ class MessageProcessor:
             # Do NOT commit offset - message will be redelivered
             raise
     
+    async def send_external_response(self, channel, customer_email, customer_phone, subject, body, thread_id=None):
+        """Send response back to the customer channel."""
+        try:
+            if channel == "email" and customer_email:
+                await self.gmail_handler.send_response(customer_email, subject, body, thread_id)
+            elif channel == "whatsapp" and customer_phone:
+                await self.whatsapp_handler.send_response(customer_phone, body)
+            elif channel == "web_form":
+                # For web form, the response is typically retrieved via status API
+                # but we can also send a confirmation email if provided
+                if customer_email:
+                    await self.gmail_handler.send_response(customer_email, f"Support Ticket: {subject}", body)
+            
+            logger.info(f"Response sent to {channel}")
+        except Exception as e:
+            logger.error(f"Failed to send external response to {channel}: {e}")
+
     async def resolve_customer(self, conn, email: str = None, phone: str = None):
         """Get or create customer by email or phone."""
         # Try to find by email

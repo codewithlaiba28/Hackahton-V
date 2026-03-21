@@ -115,10 +115,10 @@ export async function POST(request: NextRequest) {
             channel,
             ticket_id: `TK-${Date.now().toString(36).toUpperCase()}`,
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Agent error:", error);
         return NextResponse.json(
-            { error: "Agent processing failed" },
+            { error: "Agent processing failed", details: error.message },
             { status: 500 }
         );
     }

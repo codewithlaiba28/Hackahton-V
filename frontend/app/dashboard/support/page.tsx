@@ -16,6 +16,8 @@ export default function WebFormPage() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [subject, setSubject] = useState("");
+    const [category, setCategory] = useState("general");
+    const [priority, setPriority] = useState("medium");
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
@@ -31,7 +33,7 @@ export default function WebFormPage() {
             const res = await fetch("/api/support", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, email, subject, message }),
+                body: JSON.stringify({ name, email, subject, message, category, priority }),
             });
 
             const data = await res.json();
@@ -118,6 +120,41 @@ export default function WebFormPage() {
                             className="w-full px-4 py-3 rounded-xl text-sm outline-none glass"
                             style={{ color: "var(--text-primary)", background: "rgba(5,5,16,0.5)" }}
                         />
+                    </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-5">
+                    <div>
+                        <label className="flex items-center gap-1.5 text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>
+                            <FileText size={12} /> Category
+                        </label>
+                        <select
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl text-sm outline-none glass"
+                            style={{ color: "var(--text-primary)", background: "rgba(5,5,16,0.5)" }}
+                        >
+                            <option value="general">General Inquiry</option>
+                            <option value="technical">Technical Issue</option>
+                            <option value="billing">Billing & Pricing</option>
+                            <option value="feedback">Product Feedback</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="flex items-center gap-1.5 text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>
+                            <FileText size={12} /> Priority
+                        </label>
+                        <select
+                            value={priority}
+                            onChange={(e) => setPriority(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl text-sm outline-none glass"
+                            style={{ color: "var(--text-primary)", background: "rgba(5,5,16,0.5)" }}
+                        >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
                     </div>
                 </div>
 

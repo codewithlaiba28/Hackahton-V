@@ -7,10 +7,14 @@ All functions take a conn parameter (connection from pool).
 
 import asyncpg
 import os
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 import uuid
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # =============================================================================
 # CONNECTION POOL
@@ -19,16 +23,35 @@ import uuid
 _pool: Optional[asyncpg.Pool] = None
 
 
-async def get_pool() -> asyncpg.Pool:
-    """Get or create connection pool."""
+async def get_pool() -> Any:
+    """Get or create connection pool (with mock fallback)."""
     global _pool
+    if os.getenv("DATABASE_URL") == "mock":
+        class MockConn:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): pass
+            async def fetchrow(self, *args, **kwargs): return None
+            async def fetch(self, *args, **kwargs): return []
+            async def execute(self, *args, **kwargs): pass
+            
+        class MockPool:
+            def acquire(self):
+                return MockConn()
+            async def close(self): pass
+        return MockPool()
+
     if _pool is None:
-        _pool = await asyncpg.create_pool(
-            dsn=os.getenv("DATABASE_URL"),
-            min_size=2,
-            max_size=20,
-            command_timeout=30,
-        )
+        try:
+            _pool = await asyncpg.create_pool(
+                dsn=os.getenv("DATABASE_URL"),
+                min_size=2,
+                max_size=20,
+                command_timeout=30,
+            )
+        except Exception as e:
+            print(f"FAILED to connect to DB: {e}. Falling back to MOCK mode.")
+            os.environ["DATABASE_URL"] = "mock"
+            return await get_pool()
     return _pool
 
 
@@ -241,9 +264,11 @@ async def get_real_customers(
             c.email, 
             c.phone, 
             COUNT(t.id) as total_tickets,
-            MAX(t.created_at) as last_contact
+            MAX(t.created_at) as last_contact,
+            AVG(conv.sentiment_score) as avg_sentiment
         FROM customers c
         LEFT JOIN tickets t ON c.id = t.customer_id
+        LEFT JOIN conversations conv ON c.id = conv.customer_id
         GROUP BY c.id
         ORDER BY MAX(t.created_at) DESC NULLS LAST
         LIMIT $1
@@ -416,9 +441,11 @@ async def get_recent_tickets(
             t.priority, 
             t.status, 
             t.created_at as time,
-            c.email as customer
+            c.email as customer,
+            conv.sentiment_score as sentiment
         FROM tickets t
         LEFT JOIN customers c ON t.customer_id = c.id
+        LEFT JOIN conversations conv ON t.conversation_id = conv.id
         ORDER BY t.created_at DESC
         LIMIT $1
         """,

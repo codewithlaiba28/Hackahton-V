@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
     Mail,
     MessageSquare,
@@ -72,6 +73,42 @@ const channelData = [
 ];
 
 export default function ChannelsPage() {
+    const [stats, setStats] = useState<Record<string, any>>({});
+
+    useEffect(() => {
+        async function fetchMetrics() {
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                const res = await fetch(`${apiUrl}/metrics/channels`);
+                const data = await res.json();
+                if (data.metrics) {
+                    const statsMap: Record<string, any> = {};
+                    data.metrics.forEach((m: any) => {
+                        statsMap[m.channel] = {
+                            todayTickets: m.total_conversations,
+                            avgResponse: (m.p95_latency / 1000).toFixed(1) + "s",
+                            resolution: ((1 - (m.escalations / Math.max(1, m.total_conversations))) * 100).toFixed(0) + "%",
+                            satisfaction: (m.avg_sentiment * 5).toFixed(1) + "/5"
+                        };
+                    });
+                    setStats(statsMap);
+                }
+            } catch (error) {
+                console.error("Failed to fetch channel metrics", error);
+            }
+        }
+        fetchMetrics();
+    }, []);
+
+    // Merge static config with dynamic stats
+    const dynamicChannelData = channelData.map(ch => {
+        const key = ch.name === "Gmail (Email)" ? "email" : ch.name === "WhatsApp" ? "whatsapp" : "web_form";
+        return {
+            ...ch,
+            stats: stats[key] || { todayTickets: 0, avgResponse: "-", resolution: "-", satisfaction: "-" }
+        };
+    });
+
     return (
         <div className="flex flex-col gap-6">
             <div>
@@ -84,7 +121,7 @@ export default function ChannelsPage() {
             </div>
 
             <div className="flex flex-col gap-6">
-                {channelData.map((ch, i) => (
+                {dynamicChannelData.map((ch, i) => (
                     <div key={i} className="rounded-2xl glass overflow-hidden">
                         {/* Channel Header */}
                         <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border-primary)" }}>

@@ -23,19 +23,14 @@ type Message = {
 };
 
 const skillsStatus = [
-    { name: "Knowledge Retrieval", status: "active", latency: "280ms", calls: 342 },
-    { name: "Sentiment Analysis", status: "active", latency: "45ms", calls: 891 },
-    { name: "Escalation Decision", status: "active", latency: "32ms", calls: 891 },
-    { name: "Channel Adaptation", status: "active", latency: "18ms", calls: 756 },
-    { name: "Customer Identification", status: "active", latency: "52ms", calls: 891 },
+    { name: "Knowledge Retrieval", status: "active", latency: "-", calls: "-" },
+    { name: "Sentiment Analysis", status: "active", latency: "-", calls: "-" },
+    { name: "Escalation Decision", status: "active", latency: "-", calls: "-" },
+    { name: "Channel Adaptation", status: "active", latency: "-", calls: "-" },
+    { name: "Customer Identification", status: "active", latency: "-", calls: "-" },
 ];
 
-const sampleConversation: Message[] = [
-    { role: "user", content: "Hi, my API key stopped working after I renewed my subscription. Can you help?", time: "10:42 AM", channel: "email" },
-    { role: "agent", content: "Hello! I understand how frustrating that must be. I've found relevant documentation about API key renewals.\n\nWhen you renew your subscription, a new API key is generated automatically. You'll need to:\n\n1. Go to Settings → API Keys\n2. Copy your new key\n3. Update it in your application\n\nYour old key is deactivated for security. Would you like me to walk you through the process?", time: "10:42 AM", tools: ["create_ticket", "get_customer_history", "search_knowledge_base", "send_response"] },
-    { role: "user", content: "Oh I see, thanks! Where do I find Settings?", time: "10:43 AM" },
-    { role: "agent", content: "You can find Settings by clicking the gear icon (⚙️) in the top-right corner of your dashboard. Then navigate to the 'API Keys' tab in the left sidebar.\n\nLet me know if you need any further help!", time: "10:43 AM", tools: ["search_knowledge_base", "send_response"] },
-];
+const sampleConversation: Message[] = [];
 
 export default function AgentPage() {
     const [messages, setMessages] = useState<Message[]>(sampleConversation);
@@ -60,7 +55,7 @@ export default function AgentPage() {
 
             const agentMsg: Message = {
                 role: "agent",
-                content: data.response || "Sorry, I couldn't process that request.",
+                content: data.response || (data.details ? `API Error: ${data.details}` : "Sorry, I couldn't process that request."),
                 time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                 tools: data.tools || [],
             };

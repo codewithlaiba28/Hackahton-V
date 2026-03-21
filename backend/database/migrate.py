@@ -10,8 +10,13 @@ import asyncpg
 import os
 from pathlib import Path
 from datetime import datetime
+from dotenv import load_dotenv
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fte_user:password@localhost:5432/fte_db")
+# Load environment variables
+load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 async def create_migrations_table(conn):
@@ -47,7 +52,7 @@ async def run_migrations():
     """Run all pending migrations."""
     print(f"Connecting to database: {DATABASE_URL}")
     
-    conn = await asyncpg.connect(DATABASE_URL)
+    conn = await asyncpg.connect(DATABASE_URL, timeout=60)
     try:
         await create_migrations_table(conn)
         applied = await get_applied_migrations(conn)
@@ -77,10 +82,9 @@ async def run_migrations():
     finally:
         await conn.close()
 
-
 async def verify_schema():
     """Verify all tables were created."""
-    conn = await asyncpg.connect(DATABASE_URL)
+    conn = await asyncpg.connect(DATABASE_URL, timeout=60)
     try:
         tables = await conn.fetch("""
             SELECT table_name 

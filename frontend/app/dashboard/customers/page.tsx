@@ -62,8 +62,8 @@ export default function CustomersPage() {
                         lastContact: c.last_contact ? new Date(c.last_contact).toLocaleString([], {
                             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         }) : "Never",
-                        sentiment: 0.5, // Default placeholder
-                        status: "active"
+                        sentiment: c.avg_sentiment !== undefined && c.avg_sentiment !== null ? parseFloat(c.avg_sentiment) : 0.5,
+                        status: c.avg_sentiment !== null && parseFloat(c.avg_sentiment) < 0.3 ? "at_risk" : "active"
                     })));
                 }
             } catch (error) {

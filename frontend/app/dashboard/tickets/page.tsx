@@ -75,7 +75,7 @@ export default function TicketsPage() {
                         created: new Date(t.time).toLocaleString([], {
                             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         }),
-                        sentiment: 0.5 // Default placeholder until db adds sentiment tracking to ticket query
+                        sentiment: t.sentiment !== undefined && t.sentiment !== null ? parseFloat(t.sentiment) : 0.5
                     })));
                 }
             } catch (error) {

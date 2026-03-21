@@ -28,3 +28,13 @@ httpx>=0.26.0
 
 # Utilities
 tenacity>=8.0
+
+# Stage 2 - Production Dependencies
+openai>=1.0.0
+agents-sdk>=0.1.0
+asyncpg>=0.29.0
+aiokafka>=0.8.0
+twilio>=8.0.0
+google-api-python-client>=2.0.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.1.0
