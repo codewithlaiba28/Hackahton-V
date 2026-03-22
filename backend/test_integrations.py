@@ -1,4 +1,12 @@
 import asyncio
+from dotenv import load_dotenv
+import os
+import sys
+
+# Add backend to path so we can import src
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
 from src.channels.gmail_handler import GmailHandler
 from src.channels.whatsapp_handler import WhatsAppHandler
 import logging

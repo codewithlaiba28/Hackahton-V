@@ -22,12 +22,14 @@ from database.queries import (
     get_active_conversation,
     create_conversation,
     store_message,
-    create_ticket,
+    create_ticket as db_create_ticket,
     get_ticket_by_id,
     search_knowledge_base as db_search_kb,
     record_metric,
 )
 from agent.formatters import format_for_channel
+from src.channels.gmail_handler import GmailHandler
+from src.channels.whatsapp_handler import WhatsAppHandler
 
 logger = logging.getLogger(__name__)
 
@@ -162,49 +164,6 @@ async def search_knowledge_base(input: KnowledgeSearchInput) -> str:
     except Exception as e:
         logger.error(f"Knowledge base search failed: {e}")
         return "Knowledge base temporarily unavailable. Please try again or escalate."
-async def search_knowledge_base(input: KnowledgeSearchInput) -> str:
-    """
-    Search product documentation for relevant information.
-    
-    Use this tool when the customer asks questions about product features,
-    how to use something, or needs technical information.
-    
-    Args:
-        input: Search parameters including query and optional filters
-    
-    Returns:
-        Formatted search results with relevance scores
-    """
-    try:
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            # Generate real/deterministic embedding
-            embedding = await get_embedding(input.query)
-            
-            results = await db_search_kb(
-                conn=conn,
-                embedding=embedding,
-                query=input.query,
-                max_results=input.max_results,
-                category=input.category
-            )
-            
-            if not results:
-                return "No relevant documentation found. Consider escalating to human support."
-            
-            # Format results
-            formatted = []
-            for r in results:
-                formatted.append(
-                    f"**{r['title']}** (relevance: {r['similarity']:.2f})\n"
-                    f"{r['content'][:500]}..."
-                )
-            
-            return "\n\n---\n\n".join(formatted)
-            
-    except Exception as e:
-        logger.error(f"Knowledge base search failed: {e}")
-        return "Knowledge base temporarily unavailable. Please try again or escalate."
 
 
 @function_tool
@@ -228,7 +187,7 @@ async def create_ticket(input: TicketInput) -> str:
             conv_id = await get_or_create_conversation(conn, input.customer_id, input.channel.value)
             
             # Create ticket
-            ticket_id = await create_ticket(
+            ticket_id = await db_create_ticket(
                 conn=conn,
                 customer_id=input.customer_id,
                 conversation_id=conv_id,
@@ -412,11 +371,27 @@ async def send_response(input: ResponseInput) -> str:
                 input.ticket_id
             )
             
-            # In production, would call real channel API here
-            # For now, just log
-            logger.info(f"Response sent via {input.channel.value} for ticket {input.ticket_id}")
+            # Real channel API call
+            delivery_status = "delivered"
+            if (input.channel == Channel.EMAIL or input.channel == Channel.WEB_FORM) and input.customer_email:
+                handler = GmailHandler()
+                success = await handler.send_response(
+                    customer_email=input.customer_email,
+                    subject=f"Support Ticket {input.ticket_id}",
+                    body=formatted_response
+                )
+                if not success: delivery_status = "failed"
+            elif input.channel == Channel.WHATSAPP and input.customer_phone:
+                handler = WhatsAppHandler()
+                success = await handler.send_response(
+                    customer_phone=input.customer_phone,
+                    body=formatted_response
+                )
+                if not success: delivery_status = "failed"
             
-            return f"Response sent successfully via {input.channel.value}. Status: delivered"
+            logger.info(f"Response {delivery_status} via {input.channel.value} for ticket {input.ticket_id}")
+            
+            return f"Response sent via {input.channel.value}. Status: {delivery_status}"
             
     except Exception as e:
         logger.error(f"send_response failed: {e}")

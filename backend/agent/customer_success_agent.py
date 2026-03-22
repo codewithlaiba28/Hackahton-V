@@ -1,5 +1,15 @@
 """OpenAI Agents SDK agent definition for Phase 2."""
 
+import os
+from dotenv import load_dotenv
+
+# Load env vars first
+load_dotenv('.env')
+
+# Force Cerebras settings for the agents SDK
+os.environ["OPENAI_API_KEY"] = os.getenv("CEREBRAS_API_KEY") or os.getenv("OPENAI_API_KEY")
+os.environ["OPENAI_BASE_URL"] = os.getenv("OPENAI_BASE_URL") or "https://api.cerebras.ai/v1"
+
 from agents import Agent, Runner
 from agent.tools import (
     search_knowledge_base,
@@ -40,17 +50,12 @@ async def run_agent(message: str, context: dict) -> dict:
     import os
     from openai import AsyncOpenAI
     
-    api_key = os.getenv("CEREBRAS_API_KEY") or os.getenv("OPENAI_API_KEY")
-    base_url = os.getenv("OPENAI_BASE_URL") or "https://api.cerebras.ai/v1"
-    
-    # Custom client for Cerebras compatibility
-    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    # Environment variables are now set at the top of the file
     
     result = await Runner.run(
         customer_success_agent,
         message,
-        context=context,
-        client=client
+        context=context
     )
     
     return {

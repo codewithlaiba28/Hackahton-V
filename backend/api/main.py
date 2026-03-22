@@ -1,15 +1,33 @@
 """FastAPI application for Phase 2."""
 
+import os
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+
+# Load environment variables FIRST
+load_dotenv()
+
+# Force Cerebras settings
+os.environ["OPENAI_API_KEY"] = os.getenv("CEREBRAS_API_KEY") or os.getenv("OPENAI_API_KEY")
+os.environ["OPENAI_BASE_URL"] = os.getenv("OPENAI_BASE_URL") or "https://api.cerebras.ai/v1"
+
+# Monkeypatch AsyncOpenAI to ENSURE it uses Cerebras
+_original_init = AsyncOpenAI.__init__
+def _new_init(self, *args, **kwargs):
+    k = kwargs.copy()
+    if not k.get('api_key'): k['api_key'] = os.environ["OPENAI_API_KEY"]
+    if not k.get('base_url'): k['base_url'] = os.environ["OPENAI_BASE_URL"]
+    _original_init(self, *args, **k)
+
+AsyncOpenAI.__init__ = _new_init
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
-from dotenv import load_dotenv
-import os
+import asyncio
+from typing import Dict, Any, List, Optional
 
-# Load environment variables
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
-load_dotenv()  # Also try default .env
 
 from database.queries import get_pool, close_pool
 from src.agent.sentiment import SentimentAnalyzer
@@ -31,17 +49,22 @@ async def poll_gmail_loop():
         handler = GmailHandler()
         while True:
             try:
-                messages = await handler.fetch_messages()
+                # Fetch only unread messages (default query)
+                messages = await handler.fetch_messages(query="is:unread")
                 if messages:
                     for msg in messages:
                         logger.info(f"Background Gmail fetched message from {msg.customer_email}")
-                        await process_direct_message(
+                        ticket_id, outbound = await process_direct_message(
                             channel="email",
                             content=msg.content,
                             customer_email=msg.customer_email,
                             customer_name=msg.customer_email.split('@')[0],
-                            subject=msg.metadata.get("subject", "Support Inquiry")
+                            subject=msg.subject or "Support Inquiry",
+                            thread_id=msg.metadata.get("thread_id")
                         )
+                        logger.info(f"Processed Gmail message: ticket {ticket_id}")
+                else:
+                    logger.debug("No unread Gmail messages found")
             except Exception as loop_e:
                 logger.error(f"Error in Gmail poll loop: {loop_e}")
             await asyncio.sleep(60)
@@ -120,15 +143,28 @@ async def get_channel_metrics():
     return {"metrics": metrics}
 
 
-async def process_direct_message(channel: str, content: str, customer_email: str = None, customer_phone: str = None, customer_name: str = "Unknown"):
-    """Helper function to process messages without Kafka."""
+async def process_direct_message(channel: str, content: str, customer_email: str = None, customer_phone: str = None, customer_name: str = "Unknown", subject: str = "Support Inquiry", thread_id: str = None):
+    """
+    Helper function to process messages without Kafka.
+    
+    Pipeline:
+    1. Resolve customer (get or create)
+    2. Get or create conversation
+    3. Store inbound message
+    4. Run agent
+    5. Store outbound message
+    6. Send external response via channel (Gmail/WhatsApp)
+    7. Record metrics
+    """
     from agent.customer_success_agent import run_agent
     from database.queries import (
-        create_customer, find_customer_by_email, find_customer_by_phone, 
-        create_conversation, store_message, record_metric, 
+        create_customer, find_customer_by_email, find_customer_by_phone,
+        create_conversation, store_message, record_metric,
         update_conversation_sentiment
     )
-    
+    from src.channels.gmail_handler import GmailHandler
+    from src.channels.whatsapp_handler import WhatsAppHandler
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         # 1. Resolve customer
@@ -137,29 +173,29 @@ async def process_direct_message(channel: str, content: str, customer_email: str
             customer = await find_customer_by_email(conn, customer_email)
         elif customer_phone:
             customer = await find_customer_by_phone(conn, customer_phone)
-            
+
         if not customer:
             customer_id = await create_customer(conn, email=customer_email, phone=customer_phone, name=customer_name)
         else:
             customer_id = str(customer['id'])
-        
+
         # 2. Start conversation
         conv_id = await create_conversation(conn, customer_id, channel)
-        
+
         # 3. Store inbound
         role = "customer"
         await store_message(conn, conv_id, channel, "inbound", role, content)
-        
+
         # 3.5 Sentiment Analysis
         sentiment_score, sentiment_label = sentiment_analyzer.analyze(content)
         await update_conversation_sentiment(conn, conv_id, sentiment_score)
-        
+
         # 4. Run agent
         agent_result = await run_agent(
             message=content,
             context={"customer_id": customer_id, "conversation_id": conv_id, "channel": channel}
         )
-        
+
         # 5. Store outbound
         outbound_content = agent_result.get("output", "")
         await store_message(
@@ -171,13 +207,13 @@ async def process_direct_message(channel: str, content: str, customer_email: str
             content=outbound_content,
             sentiment_score=sentiment_score
         )
-        
+
         # 6. Explicit Ticket Creation (Sentiment-based or first message)
         # Check if conversation already has a ticket
         from database.queries import get_recent_tickets, create_ticket as db_create_ticket
-        
+
         should_create_ticket = sentiment_analyzer.should_escalate(sentiment_score)
-        
+
         if should_create_ticket:
             logger.info(f"Auto-creating ticket for {channel} due to sentiment {sentiment_score}")
             await db_create_ticket(
@@ -185,14 +221,55 @@ async def process_direct_message(channel: str, content: str, customer_email: str
                 customer_id=customer_id,
                 conversation_id=conv_id,
                 channel=channel,
-                issue=f"Auto-escalated ({sentiment_label}): {content[:100]}...",
+                issue=subject if channel == "email" else content[:100],
                 priority="high" if sentiment_score < 0.2 else "medium",
                 category="sentiment_escalation"
             )
-        
-        # 7. Record metric
+
+        # 7. Send External Response via Channel
+        try:
+            if channel == "email" and customer_email:
+                gmail = GmailHandler()
+                email_sent = await gmail.send_response(
+                    customer_email=customer_email,
+                    subject=subject,
+                    body=outbound_content,
+                    thread_id=thread_id
+                )
+                if email_sent:
+                    logger.info(f"Email response sent to {customer_email}")
+                else:
+                    logger.warning(f"Failed to send email response to {customer_email}")
+                    
+            elif channel == "whatsapp" and customer_phone:
+                whatsapp = WhatsAppHandler()
+                whatsapp_sent = await whatsapp.send_response(
+                    customer_phone=customer_phone,
+                    body=outbound_content
+                )
+                if whatsapp_sent:
+                    logger.info(f"WhatsApp response sent to {customer_phone}")
+                else:
+                    logger.warning(f"Failed to send WhatsApp response to {customer_phone}")
+                    
+            elif channel == "web_form":
+                # For web form, send confirmation email if provided
+                if customer_email:
+                    gmail = GmailHandler()
+                    email_sent = await gmail.send_response(
+                        customer_email=customer_email,
+                        subject=f"Support Ticket: {subject}",
+                        body=outbound_content
+                    )
+                    if email_sent:
+                        logger.info(f"Web form confirmation email sent to {customer_email}")
+        except Exception as resp_error:
+            logger.error(f"Failed to send external response via {channel}: {resp_error}")
+            # Don't fail the whole process if response sending fails
+
+        # 8. Record metric
         await record_metric(conn, "message_processed_direct", 1.0, channel)
-        
+
         return f"tkt_{conv_id[:8]}", outbound_content
 
 @app.post("/support/submit")
@@ -221,7 +298,7 @@ async def submit_support_form(request: Request):
         else:
             # DIRECT PROCESSING (Kafka Bypass)
             logger.info(f"Direct processing web form for {data['email']}")
-            ticket_id, _ = await process_direct_message(
+            ticket_id, outbound = await process_direct_message(
                 channel="web_form",
                 content=data['message'],
                 customer_email=data['email'],
@@ -230,7 +307,8 @@ async def submit_support_form(request: Request):
         
         return {
             "ticket_id": ticket_id,
-            "message": "Thank you! Your support request has been submitted and processed.",
+            "message": "Your support request has been processed.",
+            "response": outbound,
             "estimated_response_time": "Immediate" if not kafka_enabled else "Within 24 hours"
         }
         
@@ -341,8 +419,8 @@ async def whatsapp_webhook(request: Request):
             customer_name=msg.customer_name or "WhatsApp User"
         )
         
-        # Try to send response back
-        await handler.send_response(msg.customer_phone, outbound)
+        # Note: Response is now sent by the agent via the send_response tool
+        # as per the Phase 2 production requirements.
         
         return {"status": "success", "ticket_id": ticket_id}
     except Exception as e:
@@ -351,26 +429,37 @@ async def whatsapp_webhook(request: Request):
 
 
 @app.get("/webhook/gmail/poll")
-async def manual_gmail_poll():
+async def manual_gmail_poll(q: str = "is:unread"):
     """Manually trigger Gmail polling."""
     from src.channels.gmail_handler import GmailHandler
     try:
         handler = GmailHandler()
-        messages = await handler.fetch_messages()
-        
+        messages = await handler.fetch_messages(query=q)
+
         processed = []
         for msg in messages:
             logger.info(f"Manually polled Gmail message from {msg.customer_email}")
-            ticket_id, _ = await process_direct_message(
+            ticket_id, outbound = await process_direct_message(
                 channel="email",
                 content=msg.content,
                 customer_email=msg.customer_email,
                 customer_name=msg.customer_email.split('@')[0],
-                subject=msg.metadata.get("subject", "Support Inquiry")
+                subject=msg.subject or "Support Inquiry",
+                thread_id=msg.metadata.get("thread_id")
             )
-            processed.append({"id": msg.channel_message_id, "ticket_id": ticket_id})
-            
-        return {"status": "success", "processed_count": len(processed), "messages": processed}
+            processed.append({
+                "id": msg.channel_message_id, 
+                "ticket_id": ticket_id,
+                "from": msg.customer_email,
+                "subject": msg.subject
+            })
+
+        return {
+            "status": "success", 
+            "total_fetched": len(messages), 
+            "processed_count": len(processed), 
+            "messages": processed
+        }
     except Exception as e:
         logger.error(f"Manual Gmail poll failed: {e}")
         return {"status": "error", "detail": str(e)}
