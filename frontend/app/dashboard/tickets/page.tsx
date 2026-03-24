@@ -11,6 +11,7 @@ import {
     Clock,
     ArrowUpDown,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 type TicketItem = {
     id: string;
@@ -53,6 +54,7 @@ function SentimentBar({ score }: { score: number }) {
 }
 
 export default function TicketsPage() {
+    const router = useRouter();
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const [allTickets, setAllTickets] = useState<TicketItem[]>([]);
@@ -156,6 +158,7 @@ export default function TicketsPage() {
                         <tbody>
                             {filtered.map((t) => (
                                 <tr key={t.id} className="transition-colors border-t cursor-pointer" style={{ borderColor: "var(--border-primary)" }}
+                                    onClick={() => router.push(`/dashboard/tickets/${t.id}`)}
                                     onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(99,102,241,0.04)")}
                                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                                     <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--accent-blue)" }}>{t.id}</td>

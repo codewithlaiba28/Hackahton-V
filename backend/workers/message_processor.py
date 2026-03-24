@@ -146,7 +146,9 @@ class MessageProcessor:
                     customer_phone=customer_phone,
                     subject=data.get("subject", "Support Update"),
                     body=agent_result.get("output", ""),
-                    thread_id=data.get("thread_id")
+                    thread_id=data.get("thread_id"),
+                    cc=data.get("cc"),
+                    channel_message_id=data.get("channel_message_id")
                 )
 
                 # Step 7: Record metrics
@@ -165,18 +167,20 @@ class MessageProcessor:
             # Do NOT commit offset - message will be redelivered
             raise
     
-    async def send_external_response(self, channel, customer_email, customer_phone, subject, body, thread_id=None):
+    async def send_external_response(self, channel, customer_email, customer_phone, subject, body, thread_id=None, cc=None, channel_message_id=None):
         """Send response back to the customer channel."""
         try:
             if channel == "email" and customer_email:
-                await self.gmail_handler.send_response(customer_email, subject, body, thread_id)
+                await self.gmail_handler.send_reply(customer_email, subject, body, thread_id, cc=cc)
             elif channel == "whatsapp" and customer_phone:
-                await self.whatsapp_handler.send_response(customer_phone, body)
+                if channel_message_id:
+                    await self.whatsapp_handler.mark_message_read(channel_message_id)
+                await self.whatsapp_handler.send_message(customer_phone, body)
             elif channel == "web_form":
                 # For web form, the response is typically retrieved via status API
                 # but we can also send a confirmation email if provided
                 if customer_email:
-                    await self.gmail_handler.send_response(customer_email, f"Support Ticket: {subject}", body)
+                    await self.gmail_handler.send_reply(customer_email, f"Support Ticket: {subject}", body)
             
             logger.info(f"Response sent to {channel}")
         except Exception as e:

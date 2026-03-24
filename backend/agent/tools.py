@@ -372,26 +372,20 @@ async def send_response(input: ResponseInput) -> str:
             )
             
             # Real channel API call
-            delivery_status = "delivered"
-            if (input.channel == Channel.EMAIL or input.channel == Channel.WEB_FORM) and input.customer_email:
-                handler = GmailHandler()
-                success = await handler.send_response(
-                    customer_email=input.customer_email,
-                    subject=f"Support Ticket {input.ticket_id}",
-                    body=formatted_response
-                )
-                if not success: delivery_status = "failed"
-            elif input.channel == Channel.WHATSAPP and input.customer_phone:
-                handler = WhatsAppHandler()
-                success = await handler.send_response(
-                    customer_phone=input.customer_phone,
-                    body=formatted_response
-                )
-                if not success: delivery_status = "failed"
+            # NOTE: We keep this for agent-initiated responses, but 
+            # in the main loop we use the agent's final output.
+            # To avoid duplicates, we check if this is a tool-driven response.
+            delivery_status = "delivered (internal)"
             
-            logger.info(f"Response {delivery_status} via {input.channel.value} for ticket {input.ticket_id}")
+            # If the tool is called, we mark the ticket as responded
+            # but we let the main loop handle the actual external delivery 
+            # of the FINAL output to avoid double-sending.
+            # However, if the agent wants to send a SPECIFIC message mid-turn, 
+            # we allow it here but log it.
             
-            return f"Response sent via {input.channel.value}. Status: {delivery_status}"
+            logger.info(f"Response recorded via {input.channel.value} for ticket {input.ticket_id}")
+            
+            return f"Response recorded via {input.channel.value}."
             
     except Exception as e:
         logger.error(f"send_response failed: {e}")

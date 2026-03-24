@@ -341,16 +341,18 @@ async def create_ticket(
     category: Optional[str] = None
 ) -> str:
     """Create a support ticket."""
+    import json
+    metadata = json.dumps({"issue": issue})
     row = await conn.fetchrow(
         """
         INSERT INTO tickets (
             customer_id, conversation_id, source_channel,
-            issue, priority, category
+            priority, category, metadata
         )
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
         """,
-        customer_id, conversation_id, channel, issue, priority, category
+        customer_id, conversation_id, channel, priority, category, metadata
     )
     return str(row['id'])
 
@@ -437,7 +439,7 @@ async def get_recent_tickets(
         SELECT 
             t.id, 
             t.source_channel as channel, 
-            t.issue as subject, 
+            COALESCE(t.metadata->>'issue', 'No subject') as subject, 
             t.priority, 
             t.status, 
             t.created_at as time,

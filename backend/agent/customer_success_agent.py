@@ -11,6 +11,7 @@ os.environ["OPENAI_API_KEY"] = os.getenv("CEREBRAS_API_KEY") or os.getenv("OPENA
 os.environ["OPENAI_BASE_URL"] = os.getenv("OPENAI_BASE_URL") or "https://api.cerebras.ai/v1"
 
 from agents import Agent, Runner
+from agents.models.openai_provider import OpenAIProvider
 from agent.tools import (
     search_knowledge_base,
     create_ticket,
@@ -22,9 +23,13 @@ from agent.prompts import CUSTOMER_SUCCESS_SYSTEM_PROMPT
 
 
 import os
+
+provider = OpenAIProvider(use_responses=False)
+model_instance = provider.get_model(os.getenv("CEREBRAS_MODEL", "llama3.1-8b"))
+
 customer_success_agent = Agent(
     name="Customer Success FTE",
-    model=os.getenv("CEREBRAS_MODEL", "llama3.1-8b"),
+    model=model_instance,
     instructions=CUSTOMER_SUCCESS_SYSTEM_PROMPT,
     tools=[
         search_knowledge_base,

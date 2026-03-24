@@ -60,7 +60,9 @@ async def poll_gmail_loop():
                             customer_email=msg.customer_email,
                             customer_name=msg.customer_email.split('@')[0],
                             subject=msg.subject or "Support Inquiry",
-                            thread_id=msg.metadata.get("thread_id")
+                            thread_id=msg.metadata.get("thread_id"),
+                            in_reply_to=msg.channel_message_id,
+                            cc=msg.metadata.get("cc")
                         )
                         logger.info(f"Processed Gmail message: ticket {ticket_id}")
                 else:
@@ -143,7 +145,7 @@ async def get_channel_metrics():
     return {"metrics": metrics}
 
 
-async def process_direct_message(channel: str, content: str, customer_email: str = None, customer_phone: str = None, customer_name: str = "Unknown", subject: str = "Support Inquiry", thread_id: str = None):
+async def process_direct_message(channel: str, content: str, customer_email: str = None, customer_phone: str = None, customer_name: str = "Unknown", subject: str = "Support Inquiry", thread_id: str = None, in_reply_to: str = None, cc: str = None, channel_message_id: str = None):
     """
     Helper function to process messages without Kafka.
     
@@ -230,11 +232,13 @@ async def process_direct_message(channel: str, content: str, customer_email: str
         try:
             if channel == "email" and customer_email:
                 gmail = GmailHandler()
-                email_sent = await gmail.send_response(
+                email_sent = await gmail.send_reply(
                     customer_email=customer_email,
                     subject=subject,
                     body=outbound_content,
-                    thread_id=thread_id
+                    thread_id=thread_id,
+                    in_reply_to=in_reply_to,
+                    cc=cc
                 )
                 if email_sent:
                     logger.info(f"Email response sent to {customer_email}")
@@ -243,7 +247,11 @@ async def process_direct_message(channel: str, content: str, customer_email: str
                     
             elif channel == "whatsapp" and customer_phone:
                 whatsapp = WhatsAppHandler()
-                whatsapp_sent = await whatsapp.send_response(
+                
+                if channel_message_id:
+                    await whatsapp.mark_message_read(channel_message_id)
+
+                whatsapp_sent = await whatsapp.send_message(
                     customer_phone=customer_phone,
                     body=outbound_content
                 )
@@ -256,7 +264,7 @@ async def process_direct_message(channel: str, content: str, customer_email: str
                 # For web form, send confirmation email if provided
                 if customer_email:
                     gmail = GmailHandler()
-                    email_sent = await gmail.send_response(
+                    email_sent = await gmail.send_reply(
                         customer_email=customer_email,
                         subject=f"Support Ticket: {subject}",
                         body=outbound_content
@@ -416,7 +424,8 @@ async def whatsapp_webhook(request: Request):
             channel="whatsapp",
             content=msg.content,
             customer_phone=msg.customer_phone,
-            customer_name=msg.customer_name or "WhatsApp User"
+            customer_name=msg.customer_name or "WhatsApp User",
+            channel_message_id=msg.channel_message_id
         )
         
         # Note: Response is now sent by the agent via the send_response tool
@@ -445,7 +454,9 @@ async def manual_gmail_poll(q: str = "is:unread"):
                 customer_email=msg.customer_email,
                 customer_name=msg.customer_email.split('@')[0],
                 subject=msg.subject or "Support Inquiry",
-                thread_id=msg.metadata.get("thread_id")
+                thread_id=msg.metadata.get("thread_id"),
+                in_reply_to=msg.channel_message_id,
+                cc=msg.metadata.get("cc")
             )
             processed.append({
                 "id": msg.channel_message_id, 

@@ -109,7 +109,7 @@ class WhatsAppHandler:
             }
         )
 
-    async def send_response(self, customer_phone: str, body: str) -> bool:
+    async def send_message(self, customer_phone: str, body: str) -> bool:
         """
         Send a WhatsApp message via Twilio.
         
@@ -185,6 +185,22 @@ class WhatsAppHandler:
             return False
         except Exception as e:
             logger.error(f"❌ Error sending WhatsApp message: {e}", exc_info=True)
+            return False
+
+    async def mark_message_read(self, message_sid: str) -> bool:
+        """
+        Mark an incoming WhatsApp message as read via Twilio.
+        """
+        if not self.client:
+            logger.info(f"[MOCK WHATSAPP] Would mark message {message_sid} as read")
+            return True
+
+        try:
+            self.client.messages(message_sid).update(status='read')
+            logger.info(f"✓ WhatsApp message {message_sid} marked as read")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Error marking WhatsApp message as read: {e}", exc_info=True)
             return False
 
     def validate_whatsapp_number(self, phone_number: str) -> bool:

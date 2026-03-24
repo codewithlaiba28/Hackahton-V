@@ -49,38 +49,34 @@ class GmailHandler:
 
     def _extract_body(self, payload: Dict[str, Any]) -> str:
         """Extract the plain text body from a Gmail message payload."""
-        # Try to find plain text part first
-        if 'body' in payload and 'data' in payload['body']:
-            try:
-                return base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
-            except Exception:
-                pass
-        
-        # If multipart, search through parts
-        if 'parts' in payload:
-            for part in payload['parts']:
-                # Prefer plain text
-                if part.get('mimeType') == 'text/plain':
-                    if 'body' in part and 'data' in part['body']:
-                        try:
-                            return base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-                        except Exception:
-                            continue
-                # Fallback to HTML
-                elif part.get('mimeType') == 'text/html':
-                    if 'body' in part and 'data' in part['body']:
-                        try:
-                            # Simple HTML to text conversion (strip tags)
-                            import re
-                            html = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-                            return re.sub(r'<[^>]+>', '', html)
-                        except Exception:
-                            continue
-        
-        # Last resort: return snippet
-        return ""
+        # Recursive function to find text parts
+        def find_parts(part_node):
+            text_parts = []
+            if 'parts' in part_node:
+                for subpart in part_node['parts']:
+                    text_parts.extend(find_parts(subpart))
+            
+            mime_type = part_node.get('mimeType', '')
+            if mime_type == 'text/plain' and 'body' in part_node and 'data' in part_node['body']:
+                try:
+                    text_parts.append(base64.urlsafe_b64decode(part_node['body']['data']).decode('utf-8'))
+                except Exception:
+                    pass
+            elif mime_type == 'text/html' and 'body' in part_node and 'data' in part_node['body']:
+                try:
+                    # Basic HTML to text if plain was not found
+                    import re
+                    html = base64.urlsafe_b64decode(part_node['body']['data']).decode('utf-8')
+                    text_parts.append(re.sub(r'<[^>]+>', '', html))
+                except Exception:
+                    pass
+            return text_parts
 
-    async def fetch_messages(self, query: str = "is:unread") -> List[ChannelMessage]:
+        all_text = find_parts(payload)
+        # Prioritize plain text if available
+        return "\n".join(all_text) if all_text else ""
+
+    async def fetch_messages(self, query: str = "is:unread", mark_as_read: bool = True) -> List[ChannelMessage]:
         """
         Fetch unread messages from Gmail inbox.
         
@@ -125,6 +121,7 @@ class GmailHandler:
                     
                     # Extract recipient (for verification)
                     recipient = next((h['value'] for h in headers if h['name'].lower() == 'to'), "")
+                    cc = next((h['value'] for h in headers if h['name'].lower() == 'cc'), "")
 
                     # Extract full body content
                     content = self._extract_body(payload)
@@ -150,21 +147,22 @@ class GmailHandler:
                         metadata={
                             'thread_id': txt.get('threadId'),
                             'recipient': recipient,
+                            'cc': cc,
                             'labels': txt.get('labelIds', []),
                             'internal_date': txt.get('internalDate')
                         }
                     ))
 
-                    # Mark as read (remove UNREAD label)
-                    try:
-                        self.service.users().messages().modify(
-                            userId='me',
-                            id=msg['id'],
-                            body={'removeLabelIds': ['UNREAD']}
-                        ).execute()
-                        logger.info(f"Marked message {msg['id']} as read")
-                    except Exception as mark_error:
-                        logger.warning(f"Failed to mark message as read: {mark_error}")
+                    if mark_as_read:
+                        try:
+                            self.service.users().messages().modify(
+                                userId='me',
+                                id=msg['id'],
+                                body={'removeLabelIds': ['UNREAD']}
+                            ).execute()
+                            logger.info(f"Marked message {msg['id']} as read")
+                        except Exception as mark_error:
+                            logger.warning(f"Failed to mark message as read: {mark_error}")
 
                 except Exception as msg_error:
                     logger.error(f"Error processing message {msg['id']}: {msg_error}")
@@ -177,7 +175,7 @@ class GmailHandler:
             logger.error(f"Error fetching Gmail messages: {e}", exc_info=True)
             return []
 
-    async def send_response(self, customer_email: str, subject: str, body: str, thread_id: Optional[str] = None, in_reply_to: Optional[str] = None) -> bool:
+    async def send_reply(self, customer_email: str, subject: str, body: str, thread_id: Optional[str] = None, in_reply_to: Optional[str] = None, cc: Optional[str] = None) -> bool:
         """
         Send an email response to a customer via Gmail API.
         
@@ -202,6 +200,8 @@ class GmailHandler:
         message.set_content(body)
         message['To'] = customer_email
         message['From'] = 'me'  # Gmail will fill this in
+        if cc:
+            message['Cc'] = cc
         message['Subject'] = f"Re: {subject}" if not subject.startswith("Re: ") else subject
         
         # Add In-Reply-To and References headers for threading
