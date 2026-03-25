@@ -152,15 +152,11 @@ class MessageProcessor:
                 )
 
                 # Step 7: Record metrics
-                await record_metric(
-                    conn=conn,
-                    metric_name="message_processed",
-                    metric_value=1.0,
-                    channel=channel,
-                    dimensions={"latency_ms": latency_ms}
-                )
+                await record_metric(conn, "sentiment_score", sentiment_score, channel)
+                await record_metric(conn, "latency_ms", float(latency_ms), channel)
+                await record_metric(conn, "message_processed", 1.0, channel)
                 
-                logger.info(f"Processed message for customer {customer_id} in {latency_ms}ms")
+                logger.info(f"Processed message for customer {customer_id} in {latency_ms}ms (sentiment: {sentiment_score})")
                 
         except Exception as e:
             logger.error(f"Failed to process message: {e}")

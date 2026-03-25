@@ -7,25 +7,51 @@ from openai import AsyncOpenAI
 # Load environment variables FIRST
 load_dotenv()
 
-# Force Cerebras settings
-os.environ["OPENAI_API_KEY"] = os.getenv("CEREBRAS_API_KEY") or os.getenv("OPENAI_API_KEY")
-os.environ["OPENAI_BASE_URL"] = os.getenv("OPENAI_BASE_URL") or "https://api.cerebras.ai/v1"
+import sys
+import httpx
+import openai
+from openai import AsyncOpenAI, OpenAI
 
-# Monkeypatch AsyncOpenAI to ENSURE it uses Cerebras
-_original_init = AsyncOpenAI.__init__
-def _new_init(self, *args, **kwargs):
-    k = kwargs.copy()
-    if not k.get('api_key'): k['api_key'] = os.environ["OPENAI_API_KEY"]
-    if not k.get('base_url'): k['base_url'] = os.environ["OPENAI_BASE_URL"]
-    _original_init(self, *args, **k)
+# Force Cerebras settings globally
+CEREBRAS_KEY = "csk-2jw8xvmwmv32tfyvyectnmwpxdvp4ckfr66tdwp83r336324"
+CEREBRAS_URL = "https://api.cerebras.ai/v1"
 
-AsyncOpenAI.__init__ = _new_init
+if CEREBRAS_KEY:
+    os.environ["OPENAI_API_KEY"] = CEREBRAS_KEY
+    os.environ["OPENAI_BASE_URL"] = CEREBRAS_URL
+    
+    # Ultimate Patch: Force every OpenAI & AsyncOpenAI client to use Cerebras
+    _orig_async_init = AsyncOpenAI.__init__
+    def _new_async_init(self, *args, **kwargs):
+        kwargs['api_key'] = CEREBRAS_KEY
+        kwargs['base_url'] = CEREBRAS_URL
+        if 'http_client' in kwargs: del kwargs['http_client']
+        _orig_async_init(self, *args, **kwargs)
+    
+    _orig_sync_init = OpenAI.__init__
+    def _new_sync_init(self, *args, **kwargs):
+        kwargs['api_key'] = CEREBRAS_KEY
+        kwargs['base_url'] = CEREBRAS_URL
+        if 'http_client' in kwargs: del kwargs['http_client']
+        _orig_sync_init(self, *args, **kwargs)
+    
+    AsyncOpenAI.__init__ = _new_async_init
+    OpenAI.__init__ = _new_sync_init
+    
+    # Also patch the global default clients if they exist
+    openai.api_key = CEREBRAS_KEY
+    openai.base_url = CEREBRAS_URL
+    
+    print(f"DEBUG: ALL OpenAI Clients (Sync/Async) Forced to Cerebras: {CEREBRAS_URL}")
+    print(f"DEBUG: Using Key: {CEREBRAS_KEY[:5]}...{CEREBRAS_KEY[-5:] if CEREBRAS_KEY else 'None'}")
 
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 import asyncio
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 
@@ -133,16 +159,6 @@ async def health_check():
     }
 
 
-@app.get("/metrics/channels")
-async def get_channel_metrics():
-    """Get channel performance metrics for last 24 hours."""
-    from database.queries import get_channel_metrics_last_24h
-    
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        metrics = await get_channel_metrics_last_24h(conn)
-    
-    return {"metrics": metrics}
 
 
 async def process_direct_message(channel: str, content: str, customer_email: str = None, customer_phone: str = None, customer_name: str = "Unknown", subject: str = "Support Inquiry", thread_id: str = None, in_reply_to: str = None, cc: str = None, channel_message_id: str = None):
@@ -167,6 +183,7 @@ async def process_direct_message(channel: str, content: str, customer_email: str
     from src.channels.gmail_handler import GmailHandler
     from src.channels.whatsapp_handler import WhatsAppHandler
 
+    start_time = datetime.utcnow()
     pool = await get_pool()
     async with pool.acquire() as conn:
         # 1. Resolve customer
@@ -276,7 +293,15 @@ async def process_direct_message(channel: str, content: str, customer_email: str
             # Don't fail the whole process if response sending fails
 
         # 8. Record metric
-        await record_metric(conn, "message_processed_direct", 1.0, channel)
+        # 7. Record metrics
+        try:
+            latency_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            await record_metric(conn, "sentiment_score", sentiment_score, channel)
+            await record_metric(conn, "latency_ms", float(latency_ms), channel)
+            await record_metric(conn, "message_processed_direct", 1.0, channel)
+            logger.info(f"Recorded metrics for {channel}: sentiment={sentiment_score}, latency={latency_ms}ms")
+        except Exception as e:
+            logger.warning(f"Failed to record metrics: {e}")
 
         return f"tkt_{conv_id[:8]}", outbound_content
 
@@ -407,7 +432,12 @@ async def get_customers_list(limit: int = 50):
 
 @app.post("/webhook/whatsapp")
 async def whatsapp_webhook(request: Request):
-    """Webhook endpoint for Twilio WhatsApp."""
+    """Webhook endpoint for Twilio WhatsApp.
+    
+    IMPORTANT: Twilio requires a TwiML XML response from webhooks.
+    We return an empty <Response/> because the actual reply is sent
+    via the Twilio REST API in process_direct_message().
+    """
     try:
         if request.headers.get("content-type", "").startswith("application/json"):
              form_data = await request.json()
@@ -420,21 +450,41 @@ async def whatsapp_webhook(request: Request):
         msg = handler.parse_webhook(form_data)
         logger.info(f"Received WhatsApp webhook from {msg.customer_phone}: {msg.content}")
         
-        ticket_id, outbound = await process_direct_message(
-            channel="whatsapp",
-            content=msg.content,
-            customer_phone=msg.customer_phone,
-            customer_name=msg.customer_name or "WhatsApp User",
-            channel_message_id=msg.channel_message_id
-        )
+        kafka_enabled = os.getenv("KAFKA_ENABLED", "true").lower() == "true"
         
-        # Note: Response is now sent by the agent via the send_response tool
-        # as per the Phase 2 production requirements.
+        if kafka_enabled:
+            event = {
+                "type": "whatsapp_webhook",
+                "data": {
+                    "channel": "whatsapp",
+                    "content": msg.content,
+                    "customer_phone": msg.customer_phone,
+                    "customer_name": msg.customer_name or "WhatsApp User",
+                    "channel_message_id": msg.channel_message_id
+                }
+            }
+            await kafka_producer.publish("fte.channels.whatsapp.inbound", event)
+            logger.info(f"WhatsApp message published to Kafka")
+            ticket_id = "pending_kafka"
+        else:
+            ticket_id, outbound = await process_direct_message(
+                channel="whatsapp",
+                content=msg.content,
+                customer_phone=msg.customer_phone,
+                customer_name=msg.customer_name or "WhatsApp User",
+                channel_message_id=msg.channel_message_id
+            )
+            logger.info(f"WhatsApp message processed directly: ticket={ticket_id}")
         
-        return {"status": "success", "ticket_id": ticket_id}
+        # Return empty TwiML response — Twilio requires XML, not JSON.
+        twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
+        return Response(content=twiml, media_type="text/xml")
+        
     except Exception as e:
-        logger.error(f"WhatsApp webhook failed: {e}")
-        return {"status": "error", "detail": str(e)}
+        logger.error(f"WhatsApp webhook failed: {e}", exc_info=True)
+        # Even on error, return valid TwiML so Twilio doesn't retry
+        twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
+        return Response(content=twiml, media_type="text/xml")
 
 
 @app.get("/webhook/gmail/poll")
@@ -445,34 +495,55 @@ async def manual_gmail_poll(q: str = "is:unread"):
         handler = GmailHandler()
         messages = await handler.fetch_messages(query=q)
 
+        kafka_enabled = os.getenv("KAFKA_ENABLED", "true").lower() == "true"
         processed = []
+
         for msg in messages:
-            logger.info(f"Manually polled Gmail message from {msg.customer_email}")
-            ticket_id, outbound = await process_direct_message(
-                channel="email",
-                content=msg.content,
-                customer_email=msg.customer_email,
-                customer_name=msg.customer_email.split('@')[0],
-                subject=msg.subject or "Support Inquiry",
-                thread_id=msg.metadata.get("thread_id"),
-                in_reply_to=msg.channel_message_id,
-                cc=msg.metadata.get("cc")
-            )
-            processed.append({
-                "id": msg.channel_message_id, 
-                "ticket_id": ticket_id,
-                "from": msg.customer_email,
-                "subject": msg.subject
-            })
+            logger.info(f"Polled Gmail message from {msg.customer_email}")
+            
+            if kafka_enabled:
+                event = {
+                    "type": "gmail_inbound",
+                    "data": {
+                        "channel": "email",
+                        "content": msg.content,
+                        "customer_email": msg.customer_email,
+                        "customer_name": msg.customer_email.split('@')[0],
+                        "subject": msg.subject or "Support Inquiry",
+                        "thread_id": msg.metadata.get("thread_id"),
+                        "in_reply_to": msg.channel_message_id,
+                        "cc": msg.metadata.get("cc")
+                    }
+                }
+                await kafka_producer.publish("fte.channels.email.inbound", event)
+                processed.append({"id": msg.channel_message_id, "status": "published_to_kafka"})
+            else:
+                ticket_id, outbound = await process_direct_message(
+                    channel="email",
+                    content=msg.content,
+                    customer_email=msg.customer_email,
+                    customer_name=msg.customer_email.split('@')[0],
+                    subject=msg.subject or "Support Inquiry",
+                    thread_id=msg.metadata.get("thread_id"),
+                    in_reply_to=msg.channel_message_id,
+                    cc=msg.metadata.get("cc")
+                )
+                processed.append({
+                    "id": msg.channel_message_id, 
+                    "ticket_id": ticket_id,
+                    "from": msg.customer_email,
+                    "subject": msg.subject
+                })
 
         return {
             "status": "success", 
             "total_fetched": len(messages), 
             "processed_count": len(processed), 
+            "mode": "kafka" if kafka_enabled else "direct",
             "messages": processed
         }
     except Exception as e:
-        logger.error(f"Manual Gmail poll failed: {e}")
+        logger.error(f"Manual Gmail poll failed: {e}", exc_info=True)
         return {"status": "error", "detail": str(e)}
 
 # Include channel routers (would be implemented in separate files)

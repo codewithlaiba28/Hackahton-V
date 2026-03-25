@@ -68,7 +68,7 @@ Customer Success FTE"""
 
     # Step 3: Send reply
     print(f"\n📤 Step 3: Sending AI response...")
-    success = await handler.send_response(
+    success = await handler.send_reply(
         customer_email=msg.customer_email,
         subject=msg.subject,
         body=ai_response,
@@ -133,7 +133,7 @@ Customer Success FTE"""
     
     # Step 3: Send reply
     print(f"\n📤 Step 3: Sending WhatsApp response...")
-    success = await handler.send_response(
+    success = await handler.send_message(
         customer_phone=message.customer_phone,
         body=ai_response
     )
@@ -179,7 +179,7 @@ Best regards,
 Customer Success FTE"""
 
     print("  Sending email response...")
-    email_success = await gmail.send_response(
+    email_success = await gmail.send_reply(
         customer_email=test_email,
         subject="Account Issue - Ticket #E2E-TEST-001",
         body=email_response_1
@@ -214,7 +214,7 @@ Best regards,
 Customer Success FTE"""
     
     print("  Sending WhatsApp follow-up response...")
-    whatsapp_success = await whatsapp.send_response(
+    whatsapp_success = await whatsapp.send_message(
         customer_phone=message.customer_phone,
         body=followup_response
     )

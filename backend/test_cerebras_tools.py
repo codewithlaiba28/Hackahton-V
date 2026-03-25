@@ -7,12 +7,25 @@ load_dotenv()
 key = "csk-2jw8xvmwmv32tfyvyectnmwpxdvp4ckfr66tdwp83r336324"
 url = "https://api.cerebras.ai/v1/chat/completions"
 
-def test_cerebras():
+def test_cerebras_with_tools():
     print(f"Testing Cerebras with key: {key[:10]}...")
     payload = {
         "model": "llama3.1-8b",
-        "messages": [{"role": "user", "content": "Hello"}],
-        "max_tokens": 10
+        "messages": [{"role": "user", "content": "What is the weather?"}],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"location": {"type": "string"}},
+                        "required": ["location"]
+                    }
+                }
+            }
+        ]
     }
     headers = {
         "Authorization": f"Bearer {key}",
@@ -27,4 +40,4 @@ def test_cerebras():
         print(f"Error: {e}")
 
 if __name__ == "__main__":
-    test_cerebras()
+    test_cerebras_with_tools()

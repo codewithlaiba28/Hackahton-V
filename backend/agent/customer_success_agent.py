@@ -1,14 +1,8 @@
-"""OpenAI Agents SDK agent definition for Phase 2."""
-
 import os
 from dotenv import load_dotenv
 
 # Load env vars first
 load_dotenv('.env')
-
-# Force Cerebras settings for the agents SDK
-os.environ["OPENAI_API_KEY"] = os.getenv("CEREBRAS_API_KEY") or os.getenv("OPENAI_API_KEY")
-os.environ["OPENAI_BASE_URL"] = os.getenv("OPENAI_BASE_URL") or "https://api.cerebras.ai/v1"
 
 from agents import Agent, Runner
 from agents.models.openai_provider import OpenAIProvider
@@ -21,12 +15,21 @@ from agent.tools import (
 )
 from agent.prompts import CUSTOMER_SUCCESS_SYSTEM_PROMPT
 
+# Initialize the provider with forced settings
+c_key = os.getenv("CEREBRAS_API_KEY")
+c_url = "https://api.cerebras.ai/v1"
 
-import os
+print(f"DEBUG: Initializing OpenAIProvider with URL: {c_url}")
+print(f"DEBUG: Key provided: {c_key[:5]}...{c_key[-5:] if c_key else 'None'}")
 
-provider = OpenAIProvider(use_responses=False)
+provider = OpenAIProvider(
+    use_responses=False,
+    api_key=c_key,
+    base_url=c_url
+)
 model_instance = provider.get_model(os.getenv("CEREBRAS_MODEL", "llama3.1-8b"))
 
+# Define the agent
 customer_success_agent = Agent(
     name="Customer Success FTE",
     model=model_instance,
@@ -40,7 +43,6 @@ customer_success_agent = Agent(
     ],
 )
 
-
 async def run_agent(message: str, context: dict) -> dict:
     """
     Run the agent with a message and context.
@@ -52,11 +54,6 @@ async def run_agent(message: str, context: dict) -> dict:
     Returns:
         Agent result dict with response, tool_calls, etc.
     """
-    import os
-    from openai import AsyncOpenAI
-    
-    # Environment variables are now set at the top of the file
-    
     result = await Runner.run(
         customer_success_agent,
         message,

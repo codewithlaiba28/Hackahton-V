@@ -64,7 +64,7 @@ async def test_send_response():
     
     print(f"Sending test email to: {test_email}")
     
-    success = await handler.send_response(
+    success = await handler.send_reply(
         customer_email=test_email,
         subject="Test from Customer Success FTE",
         body="This is a test message from the Customer Success FTE system.\n\nIf you receive this, the Gmail integration is working correctly!\n\nBest regards,\nCustomer Success FTE",
@@ -107,7 +107,7 @@ async def test_fetch_and_reply():
     for msg in messages[:3]:
         print(f"\nReplying to: {msg.customer_email} (Subject: {msg.subject})")
         
-        success = await handler.send_response(
+        success = await handler.send_reply(
             customer_email=msg.customer_email,
             subject=msg.subject,
             body=f"Thank you for your message about '{msg.subject}'.\n\nThis is an automated response from our Customer Success FTE. We have received your inquiry and will assist you shortly.\n\nBest regards,\nCustomer Success Team",

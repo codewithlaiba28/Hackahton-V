@@ -89,7 +89,7 @@ async def test_send_response():
     
     print(f"Sending test WhatsApp message to: {test_phone}")
     
-    success = await handler.send_response(
+    success = await handler.send_message(
         customer_phone=test_phone,
         body="🤖 This is a test message from Customer Success FTE!\n\nIf you receive this, the WhatsApp integration is working correctly.\n\nBest regards,\nAI Customer Success Team"
     )
@@ -130,7 +130,7 @@ Customer Success FTE"""
 
     print(f"Sending formatted response to: {test_phone}")
     
-    success = await handler.send_response(
+    success = await handler.send_message(
         customer_phone=test_phone,
         body=response_body
     )
@@ -166,7 +166,7 @@ async def test_webhook_to_response():
     print("\nStep 2: Generate and send response...")
     response = f"Hi {message.customer_name}! Our business hours are Monday-Friday, 9 AM - 6 PM PKT. How can I help you today?"
     
-    success = await handler.send_response(
+    success = await handler.send_message(
         customer_phone=message.customer_phone,
         body=response
     )
