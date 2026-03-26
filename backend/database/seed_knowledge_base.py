@@ -9,18 +9,13 @@ import asyncio
 import asyncpg
 import os
 import re
+import hashlib
 from pathlib import Path
 from typing import List, Tuple
 
-# OpenAI for embeddings (you can use any embedding service)
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-
+# Cerebras doesn't support embeddings yet, use deterministic fallback
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fte_user:password@localhost:5432/fte_db")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "")
 
 
 def parse_markdown_sections(content: str) -> List[Tuple[str, str]]:
@@ -28,39 +23,42 @@ def parse_markdown_sections(content: str) -> List[Tuple[str, str]]:
     sections = []
     current_heading = None
     current_content = []
-    
+
     for line in content.split('\n'):
         if line.startswith('## '):
             # Save previous section
             if current_heading and current_content:
                 sections.append((current_heading, '\n'.join(current_content).strip()))
-            
+
             # Start new section
             current_heading = line[3:].strip()
             current_content = []
         elif current_heading:
             current_content.append(line)
-    
+
     # Save last section
     if current_heading and current_content:
         sections.append((current_heading, '\n'.join(current_content).strip()))
-    
+
     return sections
 
 
 async def get_embedding(text: str) -> List[float]:
-    """Generate embedding using OpenAI."""
-    if not OPENAI_AVAILABLE or not OPENAI_API_KEY:
-        # Return dummy embedding for testing
-        print("WARN: OpenAI not available, using dummy embedding")
-        return [0.1] * 1536
-    
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=text
-    )
-    return response.data[0].embedding
+    """
+    Generate embedding using deterministic fallback.
+
+    Cerebras doesn't support embeddings yet, so we use a hash-based approach.
+    This is fine for local testing and development.
+
+    In production, you would use a dedicated embedding service.
+    """
+    # Deterministic fallback using hash
+    h = hashlib.sha256(text.encode()).digest()
+    dummy = []
+    for i in range(1536):
+        val = (int.from_bytes(h[i%32 : (i%32)+1], "big") / 128.0) - 1.0
+        dummy.append(val)
+    return dummy
 
 
 async def seed_knowledge_base():

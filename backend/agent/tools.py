@@ -48,20 +48,14 @@ class Channel(str, Enum):
 class KnowledgeSearchInput(BaseModel):
     """Input for knowledge base search."""
     query: str = Field(..., description="Search query for product documentation")
-    max_results: int = Field(default=5, description="Maximum results to return", ge=1, le=20)
+    max_results: int = Field(default=5, description="Maximum results to return")
     category: Optional[str] = Field(default=None, description="Optional category filter")
-    
-    @validator('query')
-    def validate_query_not_empty(cls, v):
-        if not v.strip():
-            raise ValueError("Query cannot be empty")
-        return v.strip()
 
 
 class TicketInput(BaseModel):
     """Input for ticket creation."""
     customer_id: str = Field(..., description="Unique customer identifier")
-    issue: str = Field(..., description="Customer issue description", min_length=10)
+    issue: str = Field(..., description="Customer issue description")
     priority: str = Field(default="medium", description="Ticket priority level")
     category: Optional[str] = Field(default=None, description="Issue category")
     channel: Channel = Field(..., description="Channel the customer used")
@@ -70,7 +64,7 @@ class TicketInput(BaseModel):
 class CustomerHistoryInput(BaseModel):
     """Input for customer history retrieval."""
     customer_id: str = Field(..., description="Unique customer identifier")
-    limit: int = Field(default=10, description="Number of recent interactions", ge=1, le=50)
+    limit: int = Field(default=10, description="Number of recent interactions")
 
 
 class EscalationInput(BaseModel):
@@ -84,33 +78,36 @@ class EscalationInput(BaseModel):
 class ResponseInput(BaseModel):
     """Input for sending response."""
     ticket_id: str = Field(..., description="Ticket ID to respond to")
-    message: str = Field(..., description="Response message", min_length=1)
+    message: str = Field(..., description="Response message")
     channel: Channel = Field(..., description="Channel to send via")
     customer_email: Optional[str] = Field(default=None, description="Customer email")
     customer_phone: Optional[str] = Field(default=None, description="Customer phone")
 
 
 async def get_embedding(text: str) -> List[float]:
-    """Generate embedding using OpenAI (or fallback)."""
+    """
+    Generate embedding using Cerebras API (or fallback).
+
+    Cerebras doesn't support embeddings yet, so we use a deterministic fallback.
+    This is fine for local testing and development.
+
+    In production, you would use a dedicated embedding service like:
+    - OpenAI embeddings (if you have an OpenAI key)
+    - Sentence Transformers (local)
+    - Cohere embeddings
+    """
     import os
-    from openai import OpenAI
-    
-    api_key = os.getenv("OPENAI_API_KEY")
-    is_openai = api_key and not api_key.startswith("csk-")
-    
-    if is_openai:
-        try:
-            client = OpenAI(api_key=api_key)
-            response = client.embeddings.create(
-                model="text-embedding-3-small",
-                input=text
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            logger.error(f"OpenAI embedding failed: {e}")
-    
-    # Deterministic fallback for local testing without OpenAI key
     import hashlib
+
+    # Check if we have a Cerebras key (starts with csk-)
+    api_key = os.getenv("CEREBRAS_API_KEY")
+    is_cerebras = api_key and api_key.startswith("csk-")
+
+    # Cerebras doesn't support embeddings, use deterministic fallback
+    if is_cerebras:
+        logger.info("Using Cerebras - embeddings use deterministic fallback")
+
+    # Deterministic fallback for Cerebras and local testing
     h = hashlib.sha256(text.encode()).digest()
     dummy = []
     for i in range(1536):

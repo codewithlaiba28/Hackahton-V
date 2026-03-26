@@ -2,7 +2,14 @@
 
 import os
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+
+# Disable ALL OpenAI Agents tracing BEFORE any imports
+# This is the CORRECT way to disable tracing in OpenAI Agents SDK
+os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "1"
+os.environ["OTEL_TRACES_EXPORTER"] = "none"
+os.environ["OTEL_METRICS_EXPORTER"] = "none"
+os.environ["OTEL_LOGS_EXPORTER"] = "none"
+os.environ["OTEL_SERVICE_NAME"] = "customer-success-fte"
 
 # Load environment variables FIRST
 load_dotenv()
@@ -12,14 +19,16 @@ import httpx
 import openai
 from openai import AsyncOpenAI, OpenAI
 
-# Force Cerebras settings globally
-CEREBRAS_KEY = "csk-2jw8xvmwmv32tfyvyectnmwpxdvp4ckfr66tdwp83r336324"
+# Force Cerebras settings globally (NOT OpenAI)
+CEREBRAS_KEY = os.getenv("CEREBRAS_API_KEY", "csk-2jw8xvmwmv32tfyvyectnmwpxdvp4ckfr66tdwp83r336324")
 CEREBRAS_URL = "https://api.cerebras.ai/v1"
 
 if CEREBRAS_KEY:
     os.environ["OPENAI_API_KEY"] = CEREBRAS_KEY
     os.environ["OPENAI_BASE_URL"] = CEREBRAS_URL
-    
+    os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "1"
+    os.environ["OTEL_TRACES_EXPORTER"] = "none"
+
     # Ultimate Patch: Force every OpenAI & AsyncOpenAI client to use Cerebras
     _orig_async_init = AsyncOpenAI.__init__
     def _new_async_init(self, *args, **kwargs):
@@ -27,23 +36,24 @@ if CEREBRAS_KEY:
         kwargs['base_url'] = CEREBRAS_URL
         if 'http_client' in kwargs: del kwargs['http_client']
         _orig_async_init(self, *args, **kwargs)
-    
+
     _orig_sync_init = OpenAI.__init__
     def _new_sync_init(self, *args, **kwargs):
         kwargs['api_key'] = CEREBRAS_KEY
         kwargs['base_url'] = CEREBRAS_URL
         if 'http_client' in kwargs: del kwargs['http_client']
         _orig_sync_init(self, *args, **kwargs)
-    
+
     AsyncOpenAI.__init__ = _new_async_init
     OpenAI.__init__ = _new_sync_init
-    
+
     # Also patch the global default clients if they exist
     openai.api_key = CEREBRAS_KEY
     openai.base_url = CEREBRAS_URL
-    
+
     print(f"DEBUG: ALL OpenAI Clients (Sync/Async) Forced to Cerebras: {CEREBRAS_URL}")
     print(f"DEBUG: Using Key: {CEREBRAS_KEY[:5]}...{CEREBRAS_KEY[-5:] if CEREBRAS_KEY else 'None'}")
+    print(f"DEBUG: Tracing DISABLED via OPENAI_AGENTS_DISABLE_TRACING=1")
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
@@ -164,7 +174,7 @@ async def health_check():
 async def process_direct_message(channel: str, content: str, customer_email: str = None, customer_phone: str = None, customer_name: str = "Unknown", subject: str = "Support Inquiry", thread_id: str = None, in_reply_to: str = None, cc: str = None, channel_message_id: str = None):
     """
     Helper function to process messages without Kafka.
-    
+
     Pipeline:
     1. Resolve customer (get or create)
     2. Get or create conversation
@@ -183,8 +193,18 @@ async def process_direct_message(channel: str, content: str, customer_email: str
     from src.channels.gmail_handler import GmailHandler
     from src.channels.whatsapp_handler import WhatsAppHandler
 
+    logger.info(f"🚀 Starting process_direct_message for {channel} from {customer_email or customer_phone}")
+    
     start_time = datetime.utcnow()
-    pool = await get_pool()
+    
+    # Get database pool
+    try:
+        pool = await get_pool()
+        logger.info(f"✅ Database pool obtained")
+    except Exception as db_error:
+        logger.error(f"❌ Failed to get database pool: {db_error}", exc_info=True)
+        raise
+    
     async with pool.acquire() as conn:
         # 1. Resolve customer
         customer = None
@@ -246,6 +266,7 @@ async def process_direct_message(channel: str, content: str, customer_email: str
             )
 
         # 7. Send External Response via Channel
+        logger.info(f"📤 Attempting to send response via {channel}...")
         try:
             if channel == "email" and customer_email:
                 gmail = GmailHandler()
@@ -258,25 +279,30 @@ async def process_direct_message(channel: str, content: str, customer_email: str
                     cc=cc
                 )
                 if email_sent:
-                    logger.info(f"Email response sent to {customer_email}")
+                    logger.info(f"✅ Email response sent to {customer_email}")
                 else:
-                    logger.warning(f"Failed to send email response to {customer_email}")
-                    
+                    logger.warning(f"❌ Failed to send email response to {customer_email}")
+
             elif channel == "whatsapp" and customer_phone:
+                logger.info(f"📱 Initializing WhatsApp handler...")
                 whatsapp = WhatsAppHandler()
                 
+                logger.info(f"📱 Customer phone: {customer_phone}")
+                logger.info(f"📱 Response body: {outbound_content[:100]}...")
+
                 if channel_message_id:
                     await whatsapp.mark_message_read(channel_message_id)
 
+                logger.info(f"📱 Sending WhatsApp message...")
                 whatsapp_sent = await whatsapp.send_message(
                     customer_phone=customer_phone,
                     body=outbound_content
                 )
                 if whatsapp_sent:
-                    logger.info(f"WhatsApp response sent to {customer_phone}")
+                    logger.info(f"✅ WhatsApp response sent to {customer_phone}")
                 else:
-                    logger.warning(f"Failed to send WhatsApp response to {customer_phone}")
-                    
+                    logger.warning(f"❌ Failed to send WhatsApp response to {customer_phone}")
+
             elif channel == "web_form":
                 # For web form, send confirmation email if provided
                 if customer_email:
@@ -287,9 +313,9 @@ async def process_direct_message(channel: str, content: str, customer_email: str
                         body=outbound_content
                     )
                     if email_sent:
-                        logger.info(f"Web form confirmation email sent to {customer_email}")
+                        logger.info(f"✅ Web form confirmation email sent to {customer_email}")
         except Exception as resp_error:
-            logger.error(f"Failed to send external response via {channel}: {resp_error}")
+            logger.error(f"❌ Failed to send external response via {channel}: {resp_error}", exc_info=True)
             # Don't fail the whole process if response sending fails
 
         # 8. Record metric
@@ -433,7 +459,7 @@ async def get_customers_list(limit: int = 50):
 @app.post("/webhook/whatsapp")
 async def whatsapp_webhook(request: Request):
     """Webhook endpoint for Twilio WhatsApp.
-    
+
     IMPORTANT: Twilio requires a TwiML XML response from webhooks.
     We return an empty <Response/> because the actual reply is sent
     via the Twilio REST API in process_direct_message().
@@ -443,15 +469,15 @@ async def whatsapp_webhook(request: Request):
              form_data = await request.json()
         else:
              form_data = dict(await request.form())
-             
+
         from src.channels.whatsapp_handler import WhatsAppHandler
         handler = WhatsAppHandler()
-        
+
         msg = handler.parse_webhook(form_data)
-        logger.info(f"Received WhatsApp webhook from {msg.customer_phone}: {msg.content}")
-        
+        logger.info(f"📥 Received WhatsApp webhook from {msg.customer_phone}: {msg.content}")
+
         kafka_enabled = os.getenv("KAFKA_ENABLED", "true").lower() == "true"
-        
+
         if kafka_enabled:
             event = {
                 "type": "whatsapp_webhook",
@@ -466,16 +492,24 @@ async def whatsapp_webhook(request: Request):
             await kafka_producer.publish("fte.channels.whatsapp.inbound", event)
             logger.info(f"WhatsApp message published to Kafka")
             ticket_id = "pending_kafka"
+            outbound = "Processing..."
         else:
-            ticket_id, outbound = await process_direct_message(
-                channel="whatsapp",
-                content=msg.content,
-                customer_phone=msg.customer_phone,
-                customer_name=msg.customer_name or "WhatsApp User",
-                channel_message_id=msg.channel_message_id
-            )
-            logger.info(f"WhatsApp message processed directly: ticket={ticket_id}")
-        
+            logger.info(f"🔄 Processing WhatsApp message directly (Kafka disabled)...")
+            try:
+                ticket_id, outbound = await process_direct_message(
+                    channel="whatsapp",
+                    content=msg.content,
+                    customer_phone=msg.customer_phone,
+                    customer_name=msg.customer_name or "WhatsApp User",
+                    channel_message_id=msg.channel_message_id
+                )
+                logger.info(f"✅ WhatsApp message processed: ticket={ticket_id}")
+                logger.info(f"📤 AI Response: {outbound[:100]}...")
+            except Exception as process_error:
+                logger.error(f"❌ process_direct_message failed: {process_error}", exc_info=True)
+                ticket_id = "error"
+                outbound = f"Error processing: {process_error}"
+
         # Return empty TwiML response — Twilio requires XML, not JSON.
         twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
         return Response(content=twiml, media_type="text/xml")

@@ -178,14 +178,14 @@ class GmailHandler:
     async def send_reply(self, customer_email: str, subject: str, body: str, thread_id: Optional[str] = None, in_reply_to: Optional[str] = None, cc: Optional[str] = None) -> bool:
         """
         Send an email response to a customer via Gmail API.
-        
+
         Args:
             customer_email: Recipient email address
             subject: Email subject line
             body: Email body content
             thread_id: Optional thread ID to reply in
             in_reply_to: Optional Message-ID to reply to
-        
+
         Returns:
             True if sent successfully, False otherwise
         """
@@ -203,7 +203,7 @@ class GmailHandler:
         if cc:
             message['Cc'] = cc
         message['Subject'] = f"Re: {subject}" if not subject.startswith("Re: ") else subject
-        
+
         # Add In-Reply-To and References headers for threading
         if in_reply_to:
             message['In-Reply-To'] = in_reply_to
@@ -227,3 +227,11 @@ class GmailHandler:
         except Exception as e:
             logger.error(f"Error sending Gmail message: {e}", exc_info=True)
             return False
+
+    async def send_response(self, customer_email: str, subject: str, body: str, thread_id: Optional[str] = None) -> bool:
+        """
+        Send response via Gmail (alias for send_reply).
+        
+        This is a convenience method for consistency with WhatsAppHandler.
+        """
+        return await self.send_reply(customer_email, subject, body, thread_id)

@@ -27,17 +27,37 @@ async def get_pool() -> Any:
     """Get or create connection pool (with mock fallback)."""
     global _pool
     if os.getenv("DATABASE_URL") == "mock":
-        class MockConn:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *args): pass
-            async def fetchrow(self, *args, **kwargs): return None
-            async def fetch(self, *args, **kwargs): return []
-            async def execute(self, *args, **kwargs): pass
+        class MockCursor:
+            def __init__(self):
+                self.row = {'id': 'mock-customer-id', 'email': 'mock@test.com', 'name': 'Mock User'}
             
+            async def fetchrow(self, *args, **kwargs):
+                return self.row
+            
+            async def fetch(self, *args, **kwargs):
+                return [self.row]
+            
+            async def execute(self, *args, **kwargs):
+                return 'mock-execution'
+        
+        class MockConn:
+            async def __aenter__(self): 
+                self.cursor = MockCursor()
+                return self
+            async def __aexit__(self, *args): 
+                pass
+            async def fetchrow(self, *args, **kwargs): 
+                return self.cursor.row
+            async def fetch(self, *args, **kwargs): 
+                return [self.cursor.row]
+            async def execute(self, *args, **kwargs):
+                return 'mock-execution'
+
         class MockPool:
             def acquire(self):
                 return MockConn()
-            async def close(self): pass
+            async def close(self): 
+                pass
         return MockPool()
 
     if _pool is None:
