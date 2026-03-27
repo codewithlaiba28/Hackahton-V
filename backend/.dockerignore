@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+test_*.py
+*_test.py
+
+# Credentials (mounted as volumes)
+credentials.json
+token.json
+
+# Docker
+Dockerfile
+.dockerignore
