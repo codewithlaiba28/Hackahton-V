@@ -79,3 +79,19 @@ backend/token.json
 dry_run_error.txt
 push_error.txt
 push_full_error.txt
+
+# Files containing Twilio credentials (GitHub Secret Scanning)
+GET_YOUR_TWILIO_CREDENTIALS.md
+TWILIO_63038_EXPLAINED.md
+SETUP_TWILIO_WHATSAPP.md
+WHATSAPP_SETUP_COMPLETE.md
+WHATSAPP_NOT_RESPONDING_FIX.md
+verify_twilio_credentials.py
+check_twilio_status.py
+
+# Images (optional - can be large)
+*.png
+*.jpg
+*.jpeg
+image.png
+image copy.png
