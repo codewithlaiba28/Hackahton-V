@@ -15,7 +15,7 @@ import {
 
 export default function SettingsPage() {
     const [saved, setSaved] = useState(false);
-    const [agentModel, setAgentModel] = useState("gpt-4o");
+    const [agentModel, setAgentModel] = useState("llama3.1-8b");
     const [temperature, setTemperature] = useState("0.3");
     const [maxTokens, setMaxTokens] = useState("2048");
     const [autoEscalate, setAutoEscalate] = useState(true);
@@ -58,9 +58,9 @@ export default function SettingsPage() {
                         <select value={agentModel} onChange={(e) => setAgentModel(e.target.value)}
                             className="w-full px-3 py-2.5 rounded-xl text-sm outline-none glass"
                             style={{ color: "var(--text-primary)", background: "rgba(5,5,16,0.5)" }}>
-                            <option value="gpt-4o">GPT-4o (Recommended)</option>
-                            <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
-                            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                            <option value="llama3.1-8b">Llama 3.1 8B (Fast)</option>
+                            <option value="llama3.1-70b">Llama 3.1 70B (Powerful)</option>
+                            <option value="llama3.3-70b">Llama 3.3 70B (Latest)</option>
                         </select>
                     </div>
                     <div>

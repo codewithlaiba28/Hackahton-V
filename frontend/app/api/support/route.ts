@@ -17,34 +17,24 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Try to reach backend, fallback to local processing
-        try {
-            const backendRes = await fetch(`${BACKEND_URL}/support/submit`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data),
-            });
-
-            if (backendRes.ok) {
-                const result = await backendRes.json();
-                return NextResponse.json(result);
-            }
-        } catch {
-            // Backend not reachable — process locally
-        }
-
-        // Local fallback: simulate ticket creation
-        const ticketId = `TK-${Date.now().toString(36).toUpperCase()}`;
-        return NextResponse.json({
-            ticket_id: ticketId,
-            message: "Your support request has been submitted successfully!",
-            estimated_response_time: "Within 24 hours",
-            channel: "web_form",
-            status: "open",
+        // Strictly require backend processing - NO FALLBACKS
+        const backendRes = await fetch(`${BACKEND_URL}/support/submit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
         });
-    } catch {
+
+        if (backendRes.ok) {
+            const result = await backendRes.json();
+            return NextResponse.json(result);
+        } else {
+            const errorText = await backendRes.text();
+            throw new Error(`Backend Error: ${errorText}`);
+        }
+    } catch (err: any) {
+        console.error("Support API Error:", err);
         return NextResponse.json(
-            { error: "Failed to process support request" },
+            { error: "Failed to process support request. Backend unreachable or errored." },
             { status: 500 }
         );
     }

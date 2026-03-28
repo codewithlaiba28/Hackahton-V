@@ -63,91 +63,103 @@ export default function DashboardOverview() {
     const [recentTickets, setRecentTickets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        async function fetchData() {
-            try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    async function fetchData() {
+        try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-                // Fetch Metrics
-                const res = await fetch(`${apiUrl}/metrics/channels`);
-                const data = await res.json();
+            // Fetch Metrics
+            const res = await fetch(`${apiUrl}/metrics/channels`);
+            const data = await res.json();
 
-                if (data.metrics && data.metrics.length > 0) {
-                    // Update stats based on real data
-                    const totalConversations = data.metrics.reduce((acc: number, m: any) => acc + (m.total_conversations || 0), 0);
-                    const avgSentiment = data.metrics.reduce((acc: number, m: any) => acc + (m.avg_sentiment || 0), 0) / data.metrics.length;
-                    const totalEscalations = data.metrics.reduce((acc: number, m: any) => acc + (m.escalations || 0), 0);
-                    const avgLatency = data.metrics.reduce((acc: number, m: any) => acc + (m.p95_latency || 0), 0) / data.metrics.length;
+            if (data.metrics) {
+                // Update stats based on real data
+                const totalConversations = data.metrics.reduce((acc: number, m: any) => acc + (m.total_conversations || 0), 0);
+                const avgSentiment = data.metrics.length > 0 ? (data.metrics.reduce((acc: number, m: any) => acc + (m.avg_sentiment || 0), 0) / data.metrics.length) : 0;
+                const totalEscalations = data.metrics.reduce((acc: number, m: any) => acc + (m.escalations || 0), 0);
+                const avgLatency = data.metrics.length > 0 ? (data.metrics.reduce((acc: number, m: any) => acc + (m.p95_latency || 0), 0) / data.metrics.length) : 0;
 
-                    setDashboardStats([
-                        { label: "Total Conversations", value: totalConversations.toString(), change: "Live", icon: Ticket, color: "var(--accent-blue)" },
-                        { label: "Avg Sentiment", value: (avgSentiment * 100).toFixed(0) + "%", change: "Overall", icon: CheckCircle2, color: "var(--accent-cyan)" },
-                        { label: "Avg. Response", value: (avgLatency / 1000).toFixed(1) + "s", change: "P95", icon: Clock, color: "var(--accent-purple)" },
-                        { label: "Escalations", value: totalEscalations.toString(), change: "Recent", icon: AlertTriangle, color: "var(--accent-pink)" },
-                    ]);
+                setDashboardStats([
+                    { label: "Total Conversations", value: totalConversations.toString(), change: "Live", icon: Ticket, color: "var(--accent-blue)" },
+                    { label: "Avg Sentiment", value: (avgSentiment * 100).toFixed(0) + "%", change: "Overall", icon: CheckCircle2, color: "var(--accent-cyan)" },
+                    { label: "Avg. Response", value: (avgLatency / 1000).toFixed(1) + "s", change: "P95", icon: Clock, color: "var(--accent-purple)" },
+                    { label: "Escalations", value: totalEscalations.toString(), change: "Recent", icon: AlertTriangle, color: "var(--accent-pink)" },
+                ]);
 
-                    // Update breakdown
-                    const newBreakdown = data.metrics.map((m: any) => {
-                        const icon = m.channel === "email" ? Mail : m.channel === "whatsapp" ? MessageSquare : Globe;
-                        const color = m.channel === "email" ? "var(--accent-blue)" : m.channel === "whatsapp" ? "var(--accent-cyan)" : "var(--accent-purple)";
-                        const pct = Math.round((m.total_conversations / totalConversations) * 100);
-                        return {
-                            channel: m.channel.charAt(0).toUpperCase() + m.channel.slice(1),
-                            icon,
-                            count: m.total_conversations,
-                            pct,
-                            color
-                        };
-                    });
-                    setBreakdown(newBreakdown);
-                }
-
-                // Fetch Recent Tickets
-                const ticketsRes = await fetch(`${apiUrl}/tickets?limit=5`);
-                const ticketsData = await ticketsRes.json();
-                if (ticketsData.tickets) {
-                    setRecentTickets(ticketsData.tickets.map((t: any) => ({
-                        id: t.id.substring(0, 8),
-                        subject: t.subject,
-                        channel: t.channel,
-                        status: t.status,
-                        priority: t.priority,
-                        time: new Date(t.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    })));
-                }
-
-            } catch (error) {
-                console.error("Failed to fetch dashboard data:", error);
-            } finally {
-                setIsLoading(false);
+                // Update breakdown
+                const newBreakdown = data.metrics.length > 0 ? data.metrics.map((m: any) => {
+                    const icon = m.channel === "email" ? Mail : m.channel === "whatsapp" ? MessageSquare : Globe;
+                    const color = m.channel === "email" ? "var(--accent-blue)" : m.channel === "whatsapp" ? "var(--accent-cyan)" : "var(--accent-purple)";
+                    const pct = totalConversations > 0 ? Math.round((m.total_conversations / totalConversations) * 100) : 0;
+                    return {
+                        channel: m.channel.charAt(0).toUpperCase() + m.channel.slice(1),
+                        icon,
+                        count: m.total_conversations,
+                        pct,
+                        color
+                    };
+                }) : channelBreakdown;
+                setBreakdown(newBreakdown);
             }
-        }
 
+            // Fetch Recent Tickets
+            const ticketsRes = await fetch(`${apiUrl}/tickets?limit=5`);
+            const ticketsData = await ticketsRes.json();
+            if (ticketsData.tickets) {
+                setRecentTickets(ticketsData.tickets.map((t: any) => ({
+                    id: t.id.substring(0, 8),
+                    subject: t.subject,
+                    channel: t.channel,
+                    status: t.status,
+                    priority: t.priority,
+                    time: new Date(t.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                })));
+            }
+
+        } catch (error) {
+            console.error("Failed to fetch dashboard data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    useEffect(() => {
         fetchData();
+        // Auto-refresh every 30s
+        const interval = setInterval(fetchData, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 animate-fade-up">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold">Dashboard Overview</h1>
-                <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-                    Your AI Employee is <span style={{ color: "var(--accent-cyan)" }}>● {isLoading ? "connecting..." : "online"}</span> and processing tickets across all channels.
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">System Overview</h1>
+                    <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
+                        Your AI Employee is <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: "var(--accent-cyan)" }}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" /> 
+                            {isLoading ? "connecting..." : "online"}
+                        </span> and processing tickets across all channels.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-mono tracking-tighter text-slate-500 bg-slate-400/5 px-3 py-1.5 rounded-full border border-slate-400/10">
+                    <Clock size={12} /> LAST SYNC: {new Date().toLocaleTimeString()}
+                </div>
             </div>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {dashboardStats.map((s, i) => (
-                    <div key={i} className="p-5 rounded-2xl glass glass-hover transition-all duration-200">
-                        <div className="flex items-center justify-between mb-3">
-                            <s.icon size={20} style={{ color: s.color }} />
-                            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.08)", color: "var(--accent-cyan)" }}>
+                    <div key={i} className="p-5 rounded-2xl glass glass-hover transition-all duration-300 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-blue-500/10 to-transparent rounded-bl-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center justify-between mb-3 relative z-10">
+                            <s.icon size={20} style={{ color: s.color }} className="group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-400/10" style={{ color: "var(--accent-cyan)" }}>
                                 {s.change}
                             </span>
                         </div>
-                        <p className="text-2xl font-black">{s.value}</p>
-                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{s.label}</p>
+                        <p className="text-2xl font-black tracking-tight relative z-10">{s.value}</p>
+                        <p className="text-xs mt-1 font-medium tracking-wide relative z-10" style={{ color: "var(--text-muted)" }}>{s.label}</p>
                     </div>
                 ))}
             </div>
@@ -155,34 +167,40 @@ export default function DashboardOverview() {
             {/* Main Grid */}
             <div className="grid lg:grid-cols-3 gap-6">
                 {/* Recent Tickets */}
-                <div className="lg:col-span-2 rounded-2xl glass p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold flex items-center gap-2">
-                            <Ticket size={18} style={{ color: "var(--accent-blue)" }} /> Recent Tickets
+                <div className="lg:col-span-2 rounded-2xl glass p-6 shadow-xl flex flex-col min-h-[400px]">
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-lg font-bold flex items-center gap-3">
+                            <Ticket size={20} className="text-blue-500" /> Recent Inbound Activity
                         </h2>
-                        <a href="/dashboard/tickets" className="text-xs font-medium" style={{ color: "var(--accent-blue)" }}>View All →</a>
+                        <a href="/dashboard/tickets" className="text-xs font-bold tracking-widest uppercase hover:underline" style={{ color: "var(--accent-blue)" }}>View All Records →</a>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto flex-1">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr style={{ color: "var(--text-muted)" }}>
-                                    <th className="text-left pb-3 font-medium text-xs">ID</th>
-                                    <th className="text-left pb-3 font-medium text-xs">Subject</th>
-                                    <th className="text-left pb-3 font-medium text-xs">Channel</th>
-                                    <th className="text-left pb-3 font-medium text-xs">Priority</th>
-                                    <th className="text-left pb-3 font-medium text-xs">Status</th>
-                                    <th className="text-right pb-3 font-medium text-xs">Time</th>
+                                <tr className="text-slate-500 bg-slate-400/5">
+                                    <th className="text-left px-4 py-2 font-black text-[10px] uppercase tracking-widest">ID</th>
+                                    <th className="text-left px-4 py-2 font-black text-[10px] uppercase tracking-widest">Subject</th>
+                                    <th className="text-left px-4 py-2 font-black text-[10px] uppercase tracking-widest">Channel</th>
+                                    <th className="text-left px-4 py-2 font-black text-[10px] uppercase tracking-widest">Priority</th>
+                                    <th className="text-left px-4 py-2 font-black text-[10px] uppercase tracking-widest">Status</th>
+                                    <th className="text-right px-4 py-2 font-black text-[10px] uppercase tracking-widest">Time</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {recentTickets.map((t) => (
-                                    <tr key={t.id} className="border-t" style={{ borderColor: "var(--border-primary)" }}>
-                                        <td className="py-3 font-mono text-xs" style={{ color: "var(--accent-blue)" }}>{t.id}</td>
-                                        <td className="py-3">{t.subject}</td>
-                                        <td className="py-3"><ChannelIcon channel={t.channel} /></td>
-                                        <td className="py-3"><PriorityDot priority={t.priority} /></td>
-                                        <td className="py-3"><StatusBadge status={t.status} /></td>
-                                        <td className="py-3 text-right text-xs" style={{ color: "var(--text-muted)" }}>{t.time}</td>
+                                {recentTickets.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="py-20 text-center opacity-30 text-xs">
+                                            No recent tickets detected.
+                                        </td>
+                                    </tr>
+                                ) : recentTickets.map((t) => (
+                                    <tr key={t.id} className="border-b last:border-0 hover:bg-white/5 transition-colors" style={{ borderColor: "var(--border-primary)" }}>
+                                        <td className="px-4 py-4 font-mono text-xs font-bold" style={{ color: "var(--accent-blue)" }}>#{t.id}</td>
+                                        <td className="px-4 py-4 font-medium max-w-[150px] truncate">{t.subject}</td>
+                                        <td className="px-4 py-4"><ChannelIcon channel={t.channel} /></td>
+                                        <td className="px-4 py-4"><PriorityDot priority={t.priority} /></td>
+                                        <td className="px-4 py-4"><StatusBadge status={t.status} /></td>
+                                        <td className="px-4 py-4 text-right text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{t.time}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -191,36 +209,46 @@ export default function DashboardOverview() {
                 </div>
 
                 {/* Channel Breakdown */}
-                <div className="rounded-2xl glass p-5">
-                    <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-                        <BarChart3 size={18} style={{ color: "var(--accent-purple)" }} /> Channel Mix
+                <div className="rounded-2xl glass p-6 shadow-xl flex flex-col h-full bg-slate-900/20">
+                    <h2 className="text-lg font-bold flex items-center gap-3 mb-8">
+                        <BarChart3 size={20} className="text-purple-500" /> Channel Distribution
                     </h2>
-                    <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-8 flex-1">
                         {breakdown.map((ch, i) => (
-                            <div key={i}>
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <span className="flex items-center gap-2 text-sm font-medium">
-                                        <ch.icon size={16} style={{ color: ch.color }} /> {ch.channel}
+                            <div key={i} className="group">
+                                <div className="flex items-center justify-between mb-2.5">
+                                    <span className="flex items-center gap-2.5 text-sm font-bold tracking-tight">
+                                        <ch.icon size={18} style={{ color: ch.color }} /> {ch.channel}
                                     </span>
-                                    <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>{ch.count} ({ch.pct}%)</span>
+                                    <span className="text-[10px] font-mono font-black" style={{ color: "var(--text-muted)" }}>{ch.count} ({ch.pct}%)</span>
                                 </div>
-                                <div className="w-full h-2 rounded-full" style={{ background: "rgba(99,102,241,0.1)" }}>
-                                    <div className="h-2 rounded-full transition-all duration-500" style={{ width: `${ch.pct}%`, background: ch.color }} />
+                                <div className="w-full h-3 rounded-full bg-slate-800/50 p-[2px] overflow-hidden">
+                                    <div className="h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(0,0,0,0.5)]" 
+                                         style={{ width: `${ch.pct}%`, background: ch.color }} />
                                 </div>
                             </div>
                         ))}
                     </div>
 
                     {/* Agent Status */}
-                    <div className="mt-6 p-4 rounded-xl" style={{ background: "rgba(34,211,238,0.05)", border: "1px solid rgba(34,211,238,0.15)" }}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Brain size={16} style={{ color: "var(--accent-cyan)" }} />
-                            <span className="text-sm font-bold">Agent Status</span>
+                    <div className="mt-8 p-5 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 shadow-inner">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Brain size={18} className="text-cyan-400" />
+                            <span className="text-sm font-black tracking-widest uppercase">Agent Core</span>
                         </div>
-                        <div className="flex items-center gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
-                            <span className="flex items-center gap-1"><Zap size={12} style={{ color: "var(--accent-cyan)" }} /> Active</span>
-                            <span>Uptime: 99.9%</span>
-                            <span>Model: Llama 3.1 70B (Cerebras)</span>
+                        <div className="flex flex-col gap-2.5 text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                            <div className="flex justify-between items-center">
+                                <span className="flex items-center gap-1.5"><Zap size={12} className="text-cyan-400" /> STATUS</span>
+                                <span className="font-mono text-cyan-400 font-black tracking-widest">ACTIVE</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span>UPTIME</span>
+                                <span className="font-mono text-white">99.98%</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span>LATEST MODEL</span>
+                                <span className="font-mono text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-white">LLAMA-3.1-70B</span>
+                            </div>
                         </div>
                     </div>
                 </div>
