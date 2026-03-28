@@ -89,11 +89,14 @@ async def seed_knowledge_base():
         # Check if already seeded
         count = await conn.fetchval("SELECT COUNT(*) FROM knowledge_base")
         if count > 0:
-            print(f"WARN: Knowledge base already has {count} entries")
-            response = input("Continue anyway? (y/n): ")
-            if response.lower() != 'y':
-                print("Aborted")
+            import sys
+            force = "--force" in sys.argv
+            if not force:
+                print(f"WARN: Knowledge base already has {count} entries. Use --force to re-seed. Skipping.")
                 return
+            else:
+                print(f"INFO: --force used. Clearing {count} existing entries before re-seeding.")
+                await conn.execute("TRUNCATE TABLE knowledge_base")
         
         # Insert sections
         print("\nINSERT: Inserting sections...")

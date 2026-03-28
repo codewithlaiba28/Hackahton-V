@@ -23,55 +23,24 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 _pool: Optional[asyncpg.Pool] = None
 
 
-async def get_pool() -> Any:
-    """Get or create connection pool (with mock fallback)."""
+async def get_pool() -> asyncpg.Pool:
+    """Get or create connection pool. Strictly requires a real database connection."""
     global _pool
-    if os.getenv("DATABASE_URL") == "mock":
-        class MockCursor:
-            def __init__(self):
-                self.row = {'id': 'mock-customer-id', 'email': 'mock@test.com', 'name': 'Mock User'}
-            
-            async def fetchrow(self, *args, **kwargs):
-                return self.row
-            
-            async def fetch(self, *args, **kwargs):
-                return [self.row]
-            
-            async def execute(self, *args, **kwargs):
-                return 'mock-execution'
-        
-        class MockConn:
-            async def __aenter__(self): 
-                self.cursor = MockCursor()
-                return self
-            async def __aexit__(self, *args): 
-                pass
-            async def fetchrow(self, *args, **kwargs): 
-                return self.cursor.row
-            async def fetch(self, *args, **kwargs): 
-                return [self.cursor.row]
-            async def execute(self, *args, **kwargs):
-                return 'mock-execution'
-
-        class MockPool:
-            def acquire(self):
-                return MockConn()
-            async def close(self): 
-                pass
-        return MockPool()
-
     if _pool is None:
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            raise ValueError("DATABASE_URL must be provided for the application to start.")
+        
         try:
             _pool = await asyncpg.create_pool(
-                dsn=os.getenv("DATABASE_URL"),
+                dsn=database_url,
                 min_size=2,
                 max_size=20,
                 command_timeout=30,
             )
         except Exception as e:
-            print(f"FAILED to connect to DB: {e}. Falling back to MOCK mode.")
-            os.environ["DATABASE_URL"] = "mock"
-            return await get_pool()
+            print(f"FAILED to connect to DB at {database_url}: {e}")
+            raise e
     return _pool
 
 

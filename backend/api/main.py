@@ -20,8 +20,13 @@ import openai
 from openai import AsyncOpenAI, OpenAI
 
 # Force Cerebras settings globally (NOT OpenAI)
-CEREBRAS_KEY = os.getenv("CEREBRAS_API_KEY", "csk-2jw8xvmwmv32tfyvyectnmwpxdvp4ckfr66tdwp83r336324")
+CEREBRAS_KEY = os.getenv("CEREBRAS_API_KEY")
 CEREBRAS_URL = "https://api.cerebras.ai/v1"
+
+if not CEREBRAS_KEY:
+    logger.error("❌ CEREBRAS_API_KEY is missing from environment variables!")
+    # We don't raise here yet to allow the app to start and show health errors, 
+    # but we will fail agent runs.
 
 if CEREBRAS_KEY:
     os.environ["OPENAI_API_KEY"] = CEREBRAS_KEY
