@@ -27,24 +27,24 @@ load_dotenv()
 
 # Colors for output
 class Colors:
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    END = '\033[0m'
-    BOLD = '\033[1m'
+    GREEN = ''
+    RED = ''
+    YELLOW = ''
+    BLUE = ''
+    END = ''
+    BOLD = ''
 
 def checkmark():
-    return f"{Colors.GREEN}✓{Colors.END}"
+    return "[OK]"
 
 def crossmark():
-    return f"{Colors.RED}✗{Colors.END}"
+    return "[FAIL]"
 
 def infomark():
-    return f"{Colors.BLUE}ℹ{Colors.END}"
+    return "[INFO]"
 
 def warnmark():
-    return f"{Colors.YELLOW}⚠{Colors.END}"
+    return "[WARN]"
 
 
 def verify_file_exists(path, description):
@@ -105,7 +105,7 @@ def verify_cerebras_not_openai():
     # Check api/main.py for Cerebras configuration
     main_py_path = Path('api/main.py')
     if main_py_path.exists():
-        content = main_py_path.read_text()
+        content = main_py_path.read_text(encoding='utf-8')
         if 'CEREBRAS_KEY' in content and 'CEREBRAS_URL' in content:
             print(f"  {checkmark()} Cerebras configuration found in api/main.py")
         else:
@@ -239,7 +239,7 @@ def verify_database():
     # Check schema has required tables
     schema_path = Path('database/schema.sql')
     if schema_path.exists():
-        content = schema_path.read_text()
+        content = schema_path.read_text(encoding='utf-8')
         
         required_tables = [
             'customers',
@@ -285,7 +285,7 @@ def verify_agent_tools():
     
     tools_path = Path('agent/tools.py')
     if tools_path.exists():
-        content = tools_path.read_text()
+        content = tools_path.read_text(encoding='utf-8')
         
         required_tools = [
             'search_knowledge_base',
@@ -344,9 +344,9 @@ def verify_kafka_bypass():
 
 def main():
     """Run all verifications"""
-    print(f"{Colors.BOLD}{'=' * 70}{Colors.END}")
-    print(f"{Colors.BOLD}🔍 CUSTOMER SUCCESS FTE - IMPLEMENTATION VERIFICATION{Colors.END}")
-    print(f"{Colors.BOLD}{'=' * 70}{Colors.END}")
+    print(f"======================================================================")
+    print(f"SEARCH CUSTOMER SUCCESS FTE - IMPLEMENTATION VERIFICATION")
+    print(f"======================================================================")
     
     # Change to backend directory
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -364,15 +364,15 @@ def main():
     results.append(("Kafka Bypass", verify_kafka_bypass()))
     
     # Summary
-    print(f"\n{Colors.BOLD}{'=' * 70}{Colors.END}")
-    print(f"{Colors.BOLD}📊 VERIFICATION SUMMARY{Colors.END}")
-    print(f"{Colors.BOLD}{'=' * 70}{Colors.END}\n")
+    print(f"\n======================================================================")
+    print(f"VERIFICATION SUMMARY")
+    print(f"======================================================================\n")
     
     passed = sum(1 for _, result in results if result)
     total = len(results)
     
     for name, result in results:
-        status = f"{Colors.GREEN}✅ PASS{Colors.END}" if result else f"{Colors.RED}❌ FAIL{Colors.END}"
+        status = f"PASS" if result else f"FAIL"
         print(f"  {status}: {name}")
     
     print()
@@ -380,7 +380,7 @@ def main():
     print()
     
     if passed == total:
-        print(f"{Colors.GREEN}{Colors.BOLD}🎉 ALL CHECKS PASSED!{Colors.END}")
+        print(f"ALL CHECKS PASSED!")
         print()
         print("Your Customer Success FTE is fully implemented!")
         print()
@@ -391,13 +391,13 @@ def main():
         print("4. Test Web Form: http://localhost:3000")
         print()
     else:
-        print(f"{Colors.YELLOW}{Colors.BOLD}⚠️  SOME CHECKS FAILED{Colors.END}")
+        print(f"SOME CHECKS FAILED")
         print()
         print("Please review the errors above and fix them.")
         print("Some features may not work correctly.")
         print()
     
-    print(f"{Colors.BOLD}{'=' * 70}{Colors.END}")
+    print(f"======================================================================")
 
 
 if __name__ == '__main__':

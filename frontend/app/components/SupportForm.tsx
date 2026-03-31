@@ -29,7 +29,7 @@ interface SupportFormProps {
   apiEndpoint?: string;
 }
 
-export default function SupportForm({ apiEndpoint = '/api/support/submit' }: SupportFormProps) {
+export default function SupportForm({ apiEndpoint = '/api/support' }: SupportFormProps) {
   // Form state
   const [formData, setFormData] = useState({
     name: '',

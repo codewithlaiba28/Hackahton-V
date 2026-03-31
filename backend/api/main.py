@@ -381,6 +381,103 @@ async def submit_support_form(request: Request):
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+        
+@app.post("/agent/chat")
+async def agent_chat(request: Request):
+    """Chat directly with the AI Agent."""
+    try:
+        data = await request.json()
+        message = data.get("message")
+        channel = data.get("channel", "web_form")
+        
+        # We can accept customer_id (UUID), email, or phone
+        customer_id = data.get("customer_id")
+        email = data.get("email")
+        phone = data.get("phone")
+        name = data.get("name", "Web User")
+        
+        if not message:
+            raise HTTPException(status_code=422, detail="Missing message")
+            
+        from agent.customer_success_agent import run_agent
+        from database.queries import (
+            get_pool, create_conversation, store_message, 
+            find_customer_by_email, find_customer_by_phone, create_customer
+        )
+        
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # 1. Resolve Customer ID (must be a UUID in the DB)
+            resolved_customer_id = None
+            
+            # Try by provided ID if it looks like a UUID
+            if customer_id:
+                try:
+                    import uuid
+                    uuid.UUID(customer_id)
+                    resolved_customer_id = customer_id
+                except ValueError:
+                    pass # Not a UUID, ignore it
+            
+            # Try by email if ID failed
+            if not resolved_customer_id and email:
+                cust = await find_customer_by_email(conn, email)
+                if cust:
+                    resolved_customer_id = str(cust['id'])
+            
+            # Try by phone
+            if not resolved_customer_id and phone:
+                cust = await find_customer_by_phone(conn, phone)
+                if cust:
+                    resolved_customer_id = str(cust['id'])
+            
+            # Fallback: Create a new customer or use a default one for web chat
+            if not resolved_customer_id:
+                # Use a stable email for "Anonymous Web User" if none provided
+                web_email = email or f"web_{uuid.uuid4().hex[:8]}@anonymous.com"
+                resolved_customer_id = await create_customer(
+                    conn, 
+                    email=web_email, 
+                    name=name
+                )
+            
+            # 2. Ensure conversation exists
+            conv_id = await create_conversation(conn, resolved_customer_id, channel)
+            
+            # 3. Store inbound
+            await store_message(conn, conv_id, channel, "inbound", "customer", message)
+            
+            # 4. Run Agent
+            agent_result = await run_agent(
+                message=message,
+                context={
+                    "customer_id": resolved_customer_id,
+                    "conversation_id": conv_id,
+                    "channel": channel
+                }
+            )
+            
+            # 5. Store outbound
+            output = agent_result.get("output", "")
+            await store_message(conn, conv_id, channel, "outbound", "agent", output)
+            
+            # 6. Extract tool names for frontend
+            tool_calls = agent_result.get("tool_calls", [])
+            tool_names = [tc.function.name for tc in tool_calls] if hasattr(tool_calls, "__iter__") else []
+            
+            return {
+                "response": output,
+                "tools": tool_names,
+                "conversation_id": conv_id,
+                "customer_id": resolved_customer_id,
+                "ticket_id": f"TK-{conv_id[:8].upper()}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Agent chat failed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/support/ticket/{ticket_id}")
@@ -500,20 +597,18 @@ async def whatsapp_webhook(request: Request):
             outbound = "Processing..."
         else:
             logger.info(f"🔄 Processing WhatsApp message directly (Kafka disabled)...")
-            try:
-                ticket_id, outbound = await process_direct_message(
+            import asyncio
+            # Run in the background to prevent Twilio webhook timeouts (requires response in <15s)
+            asyncio.create_task(
+                process_direct_message(
                     channel="whatsapp",
                     content=msg.content,
                     customer_phone=msg.customer_phone,
                     customer_name=msg.customer_name or "WhatsApp User",
                     channel_message_id=msg.channel_message_id
                 )
-                logger.info(f"✅ WhatsApp message processed: ticket={ticket_id}")
-                logger.info(f"📤 AI Response: {outbound[:100]}...")
-            except Exception as process_error:
-                logger.error(f"❌ process_direct_message failed: {process_error}", exc_info=True)
-                ticket_id = "error"
-                outbound = f"Error processing: {process_error}"
+            )
+            logger.info("✅ WhatsApp processing started in background to prevent Twilio timeout.")
 
         # Return empty TwiML response — Twilio requires XML, not JSON.
         twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
